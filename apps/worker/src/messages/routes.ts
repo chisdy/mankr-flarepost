@@ -3,6 +3,7 @@ import {
   AttachmentLimitError,
   AttachmentNotFoundError,
   deleteAttachmentsForMessages,
+  deleteAttachmentsForTrash,
   linkAttachmentsToMessage,
 } from '../attachments/service'
 import { findAliasById } from '../aliases/service'
@@ -15,9 +16,9 @@ import {
   emptyTrash,
   getMessage,
   insertDraft,
+  isDraft,
   isFolder,
   listMessages,
-  listTrashMessageIds,
   markRead,
   moveToTrash,
   restoreMessage,
@@ -160,11 +161,8 @@ export function registerMessageRoutes(app: MessageApp): void {
 
   // Physical delete all trash — register before :id routes for clarity
   app.delete('/api/messages/trash', async (c) => {
-    const trashIds = await listTrashMessageIds(c.env.DB)
     // Prefer R2 cleanup before D1 row delete inside emptyTrash
-    if (c.env.ATTACHMENTS && trashIds.length > 0) {
-      await deleteAttachmentsForMessages(c.env.DB, c.env.ATTACHMENTS, trashIds)
-    }
+    await deleteAttachmentsForTrash(c.env.DB, c.env.ATTACHMENTS)
     const deleted = await emptyTrash(c.env.DB)
     return c.json({ deleted })
   })
@@ -243,6 +241,8 @@ export function registerMessageRoutes(app: MessageApp): void {
 
   app.delete('/api/messages/drafts/:id', async (c) => {
     const id = c.req.param('id')
+    // Deleting attachments is destructive and R2 has no undo, so prove it is a draft first.
+    if (!(await isDraft(c.env.DB, id))) return jsonError(c, 404, 'not_found')
     if (c.env.ATTACHMENTS) {
       await deleteAttachmentsForMessages(c.env.DB, c.env.ATTACHMENTS, [id])
     }

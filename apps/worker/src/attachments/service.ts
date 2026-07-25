@@ -282,6 +282,35 @@ export async function deleteAttachment(
   return true
 }
 
+const TRASHED_MESSAGE_IDS = `SELECT id FROM messages WHERE folder = 'trash'`
+// R2 accepts up to 1000 keys per bulk delete.
+const R2_DELETE_BATCH = 1000
+
+/**
+ * Deletes every trashed message's attachments. Selects by subquery rather than by
+ * id list so an arbitrarily large trash stays within D1's 100 bound parameters.
+ */
+export async function deleteAttachmentsForTrash(
+  db: D1Database,
+  r2: R2Bucket | undefined,
+): Promise<void> {
+  if (!r2) return
+  const { results } = await db
+    .prepare(`SELECT r2_key FROM attachments WHERE message_id IN (${TRASHED_MESSAGE_IDS})`)
+    .all<{ r2_key: string }>()
+
+  const keys = (results ?? []).map((r) => r.r2_key)
+  if (keys.length === 0) return
+
+  await db
+    .prepare(`DELETE FROM attachments WHERE message_id IN (${TRASHED_MESSAGE_IDS})`)
+    .run()
+
+  for (let i = 0; i < keys.length; i += R2_DELETE_BATCH) {
+    await r2.delete(keys.slice(i, i + R2_DELETE_BATCH)).catch(() => undefined)
+  }
+}
+
 /** Delete all attachment rows + R2 objects for the given message ids. */
 export async function deleteAttachmentsForMessages(
   db: D1Database,

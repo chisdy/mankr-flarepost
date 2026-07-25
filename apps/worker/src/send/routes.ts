@@ -10,6 +10,7 @@ import {
 } from '../attachments/service'
 import { findAliasById } from '../aliases/service'
 import type { Env } from '../env'
+import { jsonError } from '../http/errors'
 import type { AppVariables } from '../http/middleware'
 import { getMessage, insertOutboundMessage, deleteDraft } from '../messages/service'
 import { checkRateLimit, incrementRateLimit } from './rate-limit'
@@ -116,11 +117,16 @@ export function registerSendRoutes(app: SendApp): void {
 
     const draftId = isNonEmptyString(body.draftId) ? body.draftId.trim() : null
 
-    // Collect attachment ids from request + already linked to draft
+    // Collect attachment ids from request + already linked to draft. The folder check
+    // matters: this path later reassigns those attachments and deletes the row, so a
+    // non-draft id would strip another message's attachments.
     const idSet = new Set(attachmentIds)
     if (draftId) {
-      const draftAtts = (await getMessage(c.env.DB, draftId))?.attachments ?? []
-      for (const a of draftAtts) idSet.add(a.id)
+      const draft = await getMessage(c.env.DB, draftId)
+      if (!draft || draft.folder !== 'draft') {
+        return jsonError(c, 400, 'invalid_draft')
+      }
+      for (const a of draft.attachments) idSet.add(a.id)
     }
     const allIds = [...idSet]
 

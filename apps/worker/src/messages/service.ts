@@ -408,14 +408,16 @@ export async function restoreMessage(
   return { folder }
 }
 
-/** Delete message_tags for trash messages, then delete trash messages (FK-safe). */
-export async function listTrashMessageIds(db: D1Database): Promise<string[]> {
-  const { results } = await db
-    .prepare(`SELECT id FROM messages WHERE folder = 'trash'`)
-    .all<{ id: string }>()
-  return (results ?? []).map((r) => r.id)
+/** Guard for draft-only operations: `messages.id` is shared across folders. */
+export async function isDraft(db: D1Database, id: string): Promise<boolean> {
+  const row = await db
+    .prepare(`SELECT id FROM messages WHERE id = ? AND folder = 'draft'`)
+    .bind(id)
+    .first<{ id: string }>()
+  return row !== null
 }
 
+/** Delete message_tags for trash messages, then delete trash messages (FK-safe). */
 export async function emptyTrash(db: D1Database): Promise<number> {
   await db
     .prepare(

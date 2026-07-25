@@ -173,7 +173,8 @@
       "rate_limited": "Send rate limit exceeded (30/hour).",
       "invalid_address": "Invalid sender or recipient address.",
       "provider_error": "Email provider failed to send.",
-      "attachments_unsupported": "Attachments require SEND_CHANNEL=resend."
+      "attachments_unsupported": "Attachments require SEND_CHANNEL=resend.",
+      "invalid_draft": "That draft no longer exists. Reload the page and try again."
     },
     "quoteHeader": "On {{when}}, {{from}} wrote:",
     "attachments": "Attachments",

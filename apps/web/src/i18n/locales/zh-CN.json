@@ -173,7 +173,8 @@
       "rate_limited": "已超过发信频率限制（30 封/小时）。",
       "invalid_address": "发件人或收件人地址无效。",
       "provider_error": "邮件服务商发送失败。",
-      "attachments_unsupported": "当前发信渠道不支持附件，请将 SEND_CHANNEL 设为 resend。"
+      "attachments_unsupported": "当前发信渠道不支持附件，请将 SEND_CHANNEL 设为 resend。",
+      "invalid_draft": "该草稿已不存在，请刷新页面后重试。"
     },
     "quoteHeader": "在 {{when}}，{{from}} 写道：",
     "attachments": "附件",
