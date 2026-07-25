@@ -1,0 +1,17 @@
+{
+  "name": "mankr-maill",
+  "private": true,
+  "packageManager": "pnpm@11.17.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @mankr/web --filter @mankr/worker dev",
+    "build": "pnpm --filter @mankr/web build && pnpm --filter @mankr/worker build",
+    "deploy": "pnpm build && wrangler deploy",
+    "db:migrate:local": "wrangler d1 migrations apply mankr-mail --local",
+    "db:migrate:remote": "wrangler d1 migrations apply mankr-mail --remote",
+    "test": "pnpm --filter @mankr/worker test"
+  },
+  "devDependencies": {
+    "wrangler": "^4.28.0",
+    "typescript": "^5.9.2"
+  }
+}

@@ -1,0 +1,23 @@
+name = "mankr-mail"
+main = "apps/worker/src/index.ts"
+compatibility_date = "2026-07-25"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "mankr-mail"
+database_id = "local-placeholder-replace-on-deploy"
+migrations_dir = "apps/worker/migrations"
+
+[[send_email]]
+name = "EMAIL"
+
+[assets]
+directory = "apps/web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+[vars]
+SEND_CHANNEL = "cloudflare"
+EMAIL_DOMAIN = "example.com"
