@@ -18,7 +18,7 @@
  * Then apply with wrangler, e.g.:
  *   pnpm init:admin
  *   # or paste the printed SQL into:
- *   # wrangler d1 execute mankr-mail --local --command "..."
+ *   # wrangler d1 execute mankr-flarepost --local --command "..."
  */
 
 import { hashPassword } from '../src/auth/password'

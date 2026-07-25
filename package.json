@@ -9,11 +9,11 @@
     "start": "pnpm run dev",
     "dev": "pnpm --parallel --filter @mankr/web --filter @mankr/worker dev",
     "build": "pnpm --filter @mankr/web build && pnpm --filter @mankr/worker build",
-    "deploy": "pnpm build && wrangler d1 migrations apply mankr-mail --remote && wrangler deploy",
-    "db:migrate:local": "wrangler d1 migrations apply mankr-mail --local",
-    "db:migrate:remote": "wrangler d1 migrations apply mankr-mail --remote",
-    "db:seed:local": "wrangler d1 execute mankr-mail --local --file=./scripts/seed-local.sql",
-    "init:admin": "echo 'Prefer POST /api/setup when users is empty. Or: ADMIN_USERNAME=... ADMIN_PASSWORD=... pnpm --filter @mankr/worker exec tsx scripts/init-admin.ts' && wrangler d1 execute mankr-mail --local --command \"SELECT COUNT(*) AS users FROM users\"",
+    "deploy": "pnpm build && wrangler d1 migrations apply mankr-flarepost --remote && wrangler deploy",
+    "db:migrate:local": "wrangler d1 migrations apply mankr-flarepost --local",
+    "db:migrate:remote": "wrangler d1 migrations apply mankr-flarepost --remote",
+    "db:seed:local": "wrangler d1 execute mankr-flarepost --local --file=./scripts/seed-local.sql",
+    "init:admin": "echo 'Prefer POST /api/setup when users is empty. Or: ADMIN_USERNAME=... ADMIN_PASSWORD=... pnpm --filter @mankr/worker exec tsx scripts/init-admin.ts' && wrangler d1 execute mankr-flarepost --local --command \"SELECT COUNT(*) AS users FROM users\"",
     "test": "pnpm --filter @mankr/worker test"
   },
   "devDependencies": {

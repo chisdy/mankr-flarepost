@@ -11,14 +11,14 @@
 # D1: replace database_id with your remote D1 ID for manual deploy
 #     (one-click / `wrangler d1 create` provisions a real ID)
 
-name = "mankr-mail"
+name = "mankr-flarepost"
 main = "apps/worker/src/index.ts"
 compatibility_date = "2026-07-25"
 compatibility_flags = ["nodejs_compat"]
 
 [[d1_databases]]
 binding = "DB"
-database_name = "mankr-mail"
+database_name = "mankr-flarepost"
 database_id = "local-placeholder-replace-on-deploy"
 migrations_dir = "apps/worker/migrations"
 
