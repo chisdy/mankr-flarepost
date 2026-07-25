@@ -20,9 +20,13 @@
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/chisdy/mankr-flarepost)
 
+> 若向导里项目名 / D1 仍显示旧名 `mankr-mail`：关掉该页，用上面按钮或此链接重新打开（勿沿用未刷新的旧向导标签页）：  
+> https://deploy.workers.cloudflare.com/?url=https://github.com/chisdy/mankr-flarepost  
+> 默认值应来自仓库 `wrangler.toml` 的 `name` / `database_name`（当前为 `mankr-flarepost`）。也可在向导里手动改名。
+
 部署完成后务必：
 
-1. **D1 migrations：** `pnpm deploy` 会自动 `wrangler d1 migrations apply mankr-flarepost --remote`。若只用 Dashboard Deploy 按钮（未必跑完整 npm `deploy` script），请补跑一次 `pnpm db:migrate:remote`
+1. **D1 migrations：** `pnpm deploy` 会自动 `wrangler d1 migrations apply DB --remote`（按 **binding** 名，用户改 D1 显示名也不影响）。若只用 Dashboard Deploy 按钮（未必跑完整 npm `deploy` script），请补跑一次 `pnpm db:migrate:remote`
 2. 设置 Secret：`COOKIES_SECRET`（必填）；若用 Resend，再设 `RESEND_API_KEY`
 3. 设置变量：`EMAIL_DOMAIN`、`SEND_CHANNEL`（Total Free 推荐 `resend`）
 4. 按 [部署清单](./docs/DEPLOY.md#部署后清单) 配置 Email Routing、打开 `/setup`、创建别名并测收发

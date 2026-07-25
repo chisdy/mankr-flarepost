@@ -8,8 +8,8 @@
 #   3. Email Routing → catch-all or per-alias → this Worker
 #   4. Open /setup to create the admin user
 #
-# D1: replace database_id with your remote D1 ID for manual deploy
-#     (one-click / `wrangler d1 create` provisions a real ID)
+# D1: all-zero database_id is a Deploy-to-Cloudflare placeholder.
+#     One-click provisions a real D1 and rewrites this ID into the forked repo.
 
 name = "mankr-flarepost"
 main = "apps/worker/src/index.ts"
@@ -19,7 +19,7 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "mankr-flarepost"
-database_id = "local-placeholder-replace-on-deploy"
+database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "apps/worker/migrations"
 
 # Cloudflare Email Sending binding (Paid / verified-destination path).

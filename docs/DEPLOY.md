@@ -36,7 +36,7 @@ corepack prepare pnpm@11.17.0 --activate
    ```
 
 3. 在向导中确认 Worker 名、D1 等资源；构建命令会使用根目录 `pnpm build` / `pnpm deploy`（Workers Builds 会检测 `package.json` scripts）。
-4. **D1 migrations：** 根目录 `pnpm deploy` 会在 `wrangler deploy` 前执行 `wrangler d1 migrations apply mankr-flarepost --remote`。若向导/Dashboard 的 Deploy 按钮只跑构建或 `wrangler deploy`、**未**执行完整 npm `deploy` script，请在首次部署后本地补跑一次：
+4. **D1 migrations：** 根目录 `pnpm deploy` 会在 `wrangler deploy` 前执行 `wrangler d1 migrations apply DB --remote`（使用 binding 名，便于一键部署时自定义 D1 显示名）。若向导/Dashboard 的 Deploy 按钮只跑构建或 `wrangler deploy`、**未**执行完整 npm `deploy` script，请在首次部署后本地补跑一次：
 
    ```bash
    pnpm db:migrate:remote
@@ -94,7 +94,7 @@ pnpm dev
 
 ### 1. 确认 D1 migrations 已应用
 
-- [ ] 若用 **`pnpm deploy`**：脚本已包含 `wrangler d1 migrations apply mankr-flarepost --remote`，一般无需再跑
+- [ ] 若用 **`pnpm deploy`**：脚本已包含 `wrangler d1 migrations apply DB --remote`，一般无需再跑
 - [ ] 若只用 **Dashboard Deploy 按钮**（可能未跑完整 npm `deploy` script）：本地执行一次 `pnpm db:migrate:remote`
 
 ### 2. 确认环境变量与 Secrets
