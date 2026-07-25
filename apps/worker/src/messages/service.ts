@@ -275,3 +275,47 @@ export async function insertInboundMessage(
     .run()
   return { id }
 }
+
+export type InsertOutboundMessageInput = {
+  aliasId: string
+  fromAddr: string
+  toAddrs: string[]
+  subject: string
+  textBody: string
+  htmlBody: string | null
+  providerMessageId: string | null
+}
+
+/** Insert a successfully sent message into the sent folder. */
+export async function insertOutboundMessage(
+  db: D1Database,
+  input: InsertOutboundMessageInput,
+): Promise<{ id: string }> {
+  const id = crypto.randomUUID()
+  const createdAt = Date.now()
+  await db
+    .prepare(
+      `INSERT INTO messages (
+         id, alias_id, folder, direction, from_addr, to_addrs, subject,
+         text_body, html_body, is_read, has_unsupported_attachments,
+         provider_message_id, created_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      id,
+      input.aliasId,
+      'sent',
+      'outbound',
+      input.fromAddr,
+      JSON.stringify(input.toAddrs),
+      input.subject,
+      input.textBody,
+      input.htmlBody,
+      1,
+      0,
+      input.providerMessageId,
+      createdAt,
+    )
+    .run()
+  return { id }
+}

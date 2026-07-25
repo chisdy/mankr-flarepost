@@ -3,6 +3,7 @@ import type { Env } from '../env'
 import { registerAliasRoutes } from '../aliases/routes'
 import { registerAuthRoutes } from '../auth/routes'
 import { registerMessageRoutes } from '../messages/routes'
+import { registerSendRoutes } from '../send/routes'
 import { jsonError } from './errors'
 import { requireSession, type AppVariables } from './middleware'
 
@@ -15,6 +16,8 @@ export function createApp() {
   // Authenticated API routes
   app.use('/api/*', requireSession)
   registerAliasRoutes(app)
+  // Send before message :id routes so /api/messages/send is unambiguous
+  registerSendRoutes(app)
   registerMessageRoutes(app)
 
   // Gate unknown / future /api/* routes
