@@ -3,7 +3,7 @@
 | 项 | 内容 |
 |----|------|
 | 文档类型 | 技术选型与架构设计 |
-| 工作名 | Mankr Flarepost（仓库：`mankr-maill`） |
+| 工作名 | Mankr Flarepost（仓库：`mankr-flarepost`） |
 | 日期 | 2026-07-25 |
 | 状态 | 已确认（待实现计划） |
 | 关联 PRD | [2026-07-25-cloudflare-personal-mail-prd.md](./2026-07-25-cloudflare-personal-mail-prd.md) |

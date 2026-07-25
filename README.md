@@ -18,9 +18,7 @@
 
 ## 一键部署
 
-将下方仓库 URL 换成你的公开 GitHub/GitLab 地址后使用：
-
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/YOUR_ORG/mankr-maill)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/chisdy/mankr-flarepost)
 
 部署完成后务必：
 

@@ -3,7 +3,7 @@
 | 项 | 内容 |
 |----|------|
 | 文档类型 | 产品需求文档（PRD）— 仅需求与功能方向 |
-| 工作名 | Mankr Flarepost（仓库：`mankr-maill`） |
+| 工作名 | Mankr Flarepost（仓库：`mankr-flarepost`） |
 | 日期 | 2026-07-25 |
 | 状态 | 已确认 |
 | 关联架构 | [2026-07-25-cloudflare-personal-mail-architecture.md](./2026-07-25-cloudflare-personal-mail-architecture.md) |
