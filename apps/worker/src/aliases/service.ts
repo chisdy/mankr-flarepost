@@ -58,14 +58,6 @@ export function assertCanCreate(count: number): void {
   }
 }
 
-/** Pure helper: exactly one alias is default after selecting `defaultId`. */
-export function applyDefaultUnique<T extends { id: string; isDefault: boolean }>(
-  aliases: T[],
-  defaultId: string,
-): T[] {
-  return aliases.map((a) => ({ ...a, isDefault: a.id === defaultId }))
-}
-
 /** First alias, or any create when no default exists, becomes default. */
 export function shouldAutoDefaultOnCreate(existingCount: number, hasDefault: boolean): boolean {
   if (existingCount === 0) return true
