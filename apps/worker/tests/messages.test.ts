@@ -14,6 +14,7 @@ import {
   insertDraft,
   updateDraft,
   deleteDraft,
+  setStarred,
 } from '../src/messages/service'
 
 describe('restoreTargetFolder', () => {
@@ -50,6 +51,7 @@ function mockMessageRow(overrides: Record<string, unknown> = {}) {
     text_body: 'body',
     html_body: '<p>body</p>',
     is_read: 0,
+    is_starred: 0,
     has_unsupported_attachments: 0,
     last_error_code: null,
     created_at: 1000,
@@ -58,13 +60,20 @@ function mockMessageRow(overrides: Record<string, unknown> = {}) {
   }
 }
 
+function mockDbForList(rows: ReturnType<typeof mockMessageRow>[]) {
+  const all = vi
+    .fn()
+    .mockResolvedValueOnce({ results: rows })
+    .mockResolvedValue({ results: [] })
+  const bind = vi.fn().mockReturnValue({ all })
+  const prepare = vi.fn().mockReturnValue({ bind })
+  return { prepare, bind, all, db: { prepare } as unknown as D1Database }
+}
+
 describe('listMessages', () => {
   it('queries by folder ordered by created_at DESC with limit+1', async () => {
     const rows = [mockMessageRow(), mockMessageRow({ id: 'm2', created_at: 900 })]
-    const all = vi.fn().mockResolvedValue({ results: rows })
-    const bind = vi.fn().mockReturnValue({ all })
-    const prepare = vi.fn().mockReturnValue({ bind })
-    const db = { prepare } as unknown as D1Database
+    const { prepare, bind, db } = mockDbForList(rows)
 
     const result = await listMessages(db, { folder: 'inbox', limit: 20 })
 
@@ -76,8 +85,10 @@ describe('listMessages', () => {
       toAddrs: ['me@example.com'],
       subject: 'Hello',
       isRead: false,
+      isStarred: false,
       hasUnsupportedAttachments: false,
       createdAt: 1000,
+      tagIds: [],
     })
     expect(result.nextCursor).toBeNull()
     const sql = String(prepare.mock.calls[0]?.[0] ?? '')
@@ -90,22 +101,44 @@ describe('listMessages', () => {
     const rows = Array.from({ length: 3 }, (_, i) =>
       mockMessageRow({ id: `m${i}`, created_at: 1000 - i }),
     )
-    const all = vi.fn().mockResolvedValue({ results: rows })
-    const bind = vi.fn().mockReturnValue({ all })
-    const prepare = vi.fn().mockReturnValue({ bind })
-    const db = { prepare } as unknown as D1Database
+    const { db } = mockDbForList(rows)
 
     const result = await listMessages(db, { folder: 'sent', limit: 2 })
     expect(result.items).toHaveLength(2)
     expect(result.nextCursor).toBe(encodeCursor(999, 'm1'))
   })
+
+  it('lists starred messages excluding trash and draft', async () => {
+    const rows = [mockMessageRow({ is_starred: 1 })]
+    const { prepare, bind, db } = mockDbForList(rows)
+
+    const result = await listMessages(db, { starred: true, limit: 10 })
+    expect(result.items[0]?.isStarred).toBe(true)
+    const sql = String(prepare.mock.calls[0]?.[0] ?? '')
+    expect(sql).toMatch(/is_starred\s*=\s*1/i)
+    expect(sql).toMatch(/folder\s+NOT\s+IN\s*\(\s*'trash'\s*,\s*'draft'\s*\)/i)
+    expect(bind).toHaveBeenCalledWith(11)
+  })
+
+  it('lists by tagId via join', async () => {
+    const rows = [mockMessageRow()]
+    const { prepare, bind, db } = mockDbForList(rows)
+
+    await listMessages(db, { tagId: 'tag-1', limit: 10 })
+    const sql = String(prepare.mock.calls[0]?.[0] ?? '')
+    expect(sql).toMatch(/INNER\s+JOIN\s+message_tags/i)
+    expect(bind).toHaveBeenCalledWith('tag-1', 11)
+  })
 })
 
 describe('getMessage', () => {
   it('returns detail shape including bodies and direction', async () => {
-    const row = mockMessageRow({ last_error_code: 'rate_limited' })
+    const row = mockMessageRow({ last_error_code: 'rate_limited', is_starred: 1 })
     const first = vi.fn().mockResolvedValue(row)
-    const bind = vi.fn().mockReturnValue({ first })
+    const all = vi.fn().mockResolvedValue({
+      results: [{ id: 't1', name: 'Work', color: '#000' }],
+    })
+    const bind = vi.fn().mockReturnValue({ first, all })
     const prepare = vi.fn().mockReturnValue({ bind })
     const db = { prepare } as unknown as D1Database
 
@@ -117,6 +150,8 @@ describe('getMessage', () => {
       textBody: 'body',
       htmlBody: '<p>body</p>',
       lastErrorCode: 'rate_limited',
+      isStarred: true,
+      tags: [{ id: 't1', name: 'Work', color: '#000' }],
     })
   })
 
@@ -191,14 +226,31 @@ describe('folder actions', () => {
     await expect(restoreMessage(db, 'm1')).resolves.toBeNull()
   })
 
-  it('emptyTrash physically deletes all trash rows', async () => {
-    const run = vi.fn().mockResolvedValue({ meta: { changes: 3 }, success: true })
+  it('emptyTrash deletes message_tags for trash then messages', async () => {
+    const run = vi
+      .fn()
+      .mockResolvedValueOnce({ meta: { changes: 2 }, success: true })
+      .mockResolvedValueOnce({ meta: { changes: 3 }, success: true })
     const prepare = vi.fn().mockReturnValue({ run })
     const db = { prepare } as unknown as D1Database
 
     expect(await emptyTrash(db)).toBe(3)
-    const sql = String(prepare.mock.calls[0]?.[0] ?? '')
-    expect(sql).toMatch(/DELETE\s+FROM\s+messages\s+WHERE\s+folder\s*=\s*'trash'/i)
+    const tagSql = String(prepare.mock.calls[0]?.[0] ?? '')
+    expect(tagSql).toMatch(/DELETE\s+FROM\s+message_tags/i)
+    const msgSql = String(prepare.mock.calls[1]?.[0] ?? '')
+    expect(msgSql).toMatch(/DELETE\s+FROM\s+messages\s+WHERE\s+folder\s*=\s*'trash'/i)
+  })
+})
+
+describe('setStarred', () => {
+  it('updates is_starred', async () => {
+    const run = vi.fn().mockResolvedValue({ meta: { changes: 1 }, success: true })
+    const bind = vi.fn().mockReturnValue({ run })
+    const prepare = vi.fn().mockReturnValue({ bind })
+    const db = { prepare } as unknown as D1Database
+
+    expect(await setStarred(db, 'm1', true)).toBe(true)
+    expect(bind).toHaveBeenCalledWith(1, 'm1')
   })
 })
 
@@ -244,14 +296,19 @@ describe('drafts', () => {
     expect(sql).toMatch(/WHERE\s+id\s*=\s*\?\s+AND\s+folder\s*=\s*'draft'/i)
   })
 
-  it('deleteDraft only deletes draft folder rows', async () => {
-    const run = vi.fn().mockResolvedValue({ meta: { changes: 1 }, success: true })
+  it('deleteDraft removes message_tags then draft row', async () => {
+    const run = vi
+      .fn()
+      .mockResolvedValueOnce({ meta: { changes: 1 }, success: true })
+      .mockResolvedValueOnce({ meta: { changes: 1 }, success: true })
     const bind = vi.fn().mockReturnValue({ run })
     const prepare = vi.fn().mockReturnValue({ bind })
     const db = { prepare } as unknown as D1Database
 
     expect(await deleteDraft(db, 'd1')).toBe(true)
-    const sql = String(prepare.mock.calls[0]?.[0] ?? '')
+    const tagSql = String(prepare.mock.calls[0]?.[0] ?? '')
+    expect(tagSql).toMatch(/DELETE\s+FROM\s+message_tags\s+WHERE\s+message_id\s*=\s*\?/i)
+    const sql = String(prepare.mock.calls[1]?.[0] ?? '')
     expect(sql).toMatch(/DELETE\s+FROM\s+messages\s+WHERE\s+id\s*=\s*\?\s+AND\s+folder\s*=\s*'draft'/i)
     expect(bind).toHaveBeenCalledWith('d1')
   })

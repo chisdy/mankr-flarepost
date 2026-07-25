@@ -50,16 +50,28 @@ function mockForwardableEmail(opts: {
 
 describe('handleInboundEmail', () => {
   it('inserts inbox message for enabled alias (case-insensitive)', async () => {
-    const first = vi.fn().mockResolvedValue({
-      id: 'alias-1',
-      address: 'me@example.com',
-      enabled: 1,
-      is_default: 1,
-      created_at: 1,
-    })
+    const first = vi
+      .fn()
+      .mockResolvedValueOnce({
+        id: 'alias-1',
+        address: 'me@example.com',
+        enabled: 1,
+        is_default: 1,
+        created_at: 1,
+      })
+      .mockResolvedValueOnce({
+        id: 'msg-1',
+        alias_id: 'alias-1',
+        from_addr: 'sender@example.com',
+        subject: 'Fixture multipart',
+        text_body: 'Hello plain text body',
+        folder: 'inbox',
+      })
+    const all = vi.fn().mockResolvedValue({ results: [] })
     const run = vi.fn().mockResolvedValue({ meta: { changes: 1 } })
-    const bind = vi.fn().mockReturnValue({ first, run })
-    const prepare = vi.fn().mockReturnValue({ bind })
+    const stmt = { first, run, all, bind: vi.fn() }
+    stmt.bind.mockReturnValue(stmt)
+    const prepare = vi.fn().mockReturnValue(stmt)
     const env = {
       DB: { prepare } as unknown as D1Database,
       EMAIL_DOMAIN: 'example.com',
@@ -78,7 +90,7 @@ describe('handleInboundEmail', () => {
     expect(insertSql).toBeTruthy()
     expect(insertSql).toMatch(/folder/i)
 
-    const insertBind = bind.mock.calls.find((c) =>
+    const insertBind = stmt.bind.mock.calls.find((c) =>
       Array.isArray(c) && c.some((v) => v === 'inbox' || v === 'inbound'),
     )
     expect(insertBind).toBeTruthy()
@@ -98,6 +110,10 @@ describe('handleInboundEmail', () => {
         expect.any(Number), // created_at
       ]),
     )
+    // filters queried after insert
+    expect(
+      prepare.mock.calls.some((c) => /FROM\s+filters/i.test(String(c[0]))),
+    ).toBe(true)
   })
 
   it('accepts and drops unknown address without setReject or insert', async () => {

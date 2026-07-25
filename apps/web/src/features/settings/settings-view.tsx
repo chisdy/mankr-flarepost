@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { ChangePasswordDialog } from "@/features/auth/change-password-dialog"
+import { TagsFiltersSettings } from "@/features/settings/tags-filters-settings"
 import { api, isApiError } from "@/lib/api"
 import type { Alias, AuthUser } from "@/lib/types"
 
@@ -286,6 +287,10 @@ export function SettingsView() {
               {t("nav.aliases")}
             </Button>
           </section>
+
+          <Separator />
+
+          <TagsFiltersSettings aliases={aliases} />
         </div>
       </ScrollArea>
 

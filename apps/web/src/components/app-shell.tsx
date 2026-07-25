@@ -9,6 +9,8 @@ import {
   PaperPlaneTiltIcon,
   PlusIcon,
   SignOutIcon,
+  StarIcon,
+  TagIcon,
   TrashIcon,
   UserCircleIcon,
 } from "@phosphor-icons/react"
@@ -38,10 +40,12 @@ import {
 } from "@/components/ui/sheet"
 import { ChangePasswordDialog } from "@/features/auth/change-password-dialog"
 import { api, isApiError } from "@/lib/api"
+import type { Tag } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 const folders = [
   { to: "/inbox", labelKey: "nav.inbox", icon: EnvelopeIcon },
+  { to: "/starred", labelKey: "nav.starred", icon: StarIcon },
   { to: "/draft", labelKey: "nav.drafts", icon: NoteBlankIcon },
   { to: "/sent", labelKey: "nav.sent", icon: PaperPlaneTiltIcon },
   { to: "/trash", labelKey: "nav.trash", icon: TrashIcon },
@@ -56,9 +60,10 @@ function navClassName(isActive: boolean) {
 
 type SidebarNavProps = {
   onNavigate?: () => void
+  tags: Tag[]
 }
 
-function SidebarNav({ onNavigate }: SidebarNavProps) {
+function SidebarNav({ onNavigate, tags }: SidebarNavProps) {
   const { t } = useTranslation()
 
   return (
@@ -85,6 +90,35 @@ function SidebarNav({ onNavigate }: SidebarNavProps) {
           </NavLink>
         ))}
       </nav>
+
+      {tags.length > 0 ? (
+        <>
+          <Separator />
+          <p className="px-3 text-xs font-medium text-muted-foreground">
+            {t("nav.tags")}
+          </p>
+          <nav className="flex flex-col gap-1">
+            {tags.map((tag) => (
+              <NavLink
+                key={tag.id}
+                to={`/tags/${tag.id}`}
+                onClick={onNavigate}
+                className={({ isActive }) => navClassName(isActive)}
+              >
+                <TagIcon
+                  style={
+                    tag.color &&
+                    /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(tag.color)
+                      ? { color: tag.color }
+                      : undefined
+                  }
+                />
+                <span className="truncate">{tag.name}</span>
+              </NavLink>
+            ))}
+          </nav>
+        </>
+      ) : null}
 
       <Separator />
 
@@ -175,9 +209,24 @@ export function AppShell() {
   const [passwordOpen, setPasswordOpen] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [tags, setTags] = useState<Tag[]>([])
 
   useEffect(() => {
     setMobileNavOpen(false)
+  }, [location.pathname])
+
+  useEffect(() => {
+    let cancelled = false
+    api<{ tags: Tag[] }>("/api/tags")
+      .then((data) => {
+        if (!cancelled) setTags(data.tags)
+      })
+      .catch(() => {
+        if (!cancelled) setTags([])
+      })
+    return () => {
+      cancelled = true
+    }
   }, [location.pathname])
 
   async function logout() {
@@ -209,7 +258,7 @@ export function AppShell() {
           </span>
         </div>
 
-        <SidebarNav />
+        <SidebarNav tags={tags} />
 
         <div className="mt-auto">
           <AccountMenu
@@ -278,7 +327,7 @@ export function AppShell() {
             </SheetDescription>
           </SheetHeader>
 
-          <SidebarNav onNavigate={closeMobileNav} />
+          <SidebarNav tags={tags} onNavigate={closeMobileNav} />
 
           <div className="mt-auto">
             <AccountMenu

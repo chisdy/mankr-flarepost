@@ -21,6 +21,8 @@ export function App() {
           <Route element={<AppShell />}>
             <Route path="/" element={<Navigate to="/inbox" replace />} />
             <Route path="/inbox" element={<MailboxPage />} />
+            <Route path="/starred" element={<MailboxPage />} />
+            <Route path="/tags/:tagId" element={<MailboxPage />} />
             <Route path="/draft" element={<MailboxPage />} />
             <Route path="/sent" element={<MailboxPage />} />
             <Route path="/trash" element={<MailboxPage />} />

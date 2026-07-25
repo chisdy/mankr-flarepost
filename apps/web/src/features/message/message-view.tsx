@@ -1,9 +1,10 @@
 import {
   ArrowBendUpLeftIcon,
   ArrowBendUpRightIcon,
-  ArrowLeftIcon,
-  TrashIcon,
   ArrowCounterClockwiseIcon,
+  ArrowLeftIcon,
+  StarIcon,
+  TrashIcon,
 } from "@phosphor-icons/react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -11,6 +12,7 @@ import { Link, useNavigate, useParams } from "react-router"
 import { toast } from "sonner"
 
 import { PageHeader } from "@/components/page-header"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
@@ -22,15 +24,17 @@ import {
 import { api, isApiError } from "@/lib/api"
 import { formatFullTime } from "@/lib/format"
 import { sanitize } from "@/lib/sanitize"
-import type { MessageDetail } from "@/lib/types"
+import type { MessageDetail, Tag } from "@/lib/types"
 
 export function MessageView() {
   const { t, i18n } = useTranslation()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [message, setMessage] = useState<MessageDetail | null>(null)
+  const [allTags, setAllTags] = useState<Tag[]>([])
   const [loading, setLoading] = useState(true)
   const [acting, setActing] = useState(false)
+  const [editingTags, setEditingTags] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -39,9 +43,13 @@ export function MessageView() {
     async function load() {
       setLoading(true)
       try {
-        const msg = await api<MessageDetail>(`/api/messages/${id}`)
+        const [msg, tagsRes] = await Promise.all([
+          api<MessageDetail>(`/api/messages/${id}`),
+          api<{ tags: Tag[] }>("/api/tags").catch(() => ({ tags: [] as Tag[] })),
+        ])
         if (cancelled) return
         setMessage(msg)
+        setAllTags(tagsRes.tags)
         if (!msg.isRead && msg.folder !== "trash") {
           void api(`/api/messages/${id}/read`, { method: "POST" }).then(() => {
             if (!cancelled) {
@@ -96,6 +104,44 @@ export function MessageView() {
     }
   }
 
+  async function toggleStar() {
+    if (!id || !message) return
+    setActing(true)
+    const next = !message.isStarred
+    try {
+      await api(`/api/messages/${id}/star`, {
+        method: "POST",
+        body: JSON.stringify({ starred: next }),
+      })
+      setMessage({ ...message, isStarred: next })
+    } catch (err) {
+      toast.error(isApiError(err) ? err.message : t("mailbox.starFailed"))
+    } finally {
+      setActing(false)
+    }
+  }
+
+  async function toggleTag(tagId: string) {
+    if (!id || !message) return
+    const current = new Set(message.tags.map((x) => x.id))
+    if (current.has(tagId)) current.delete(tagId)
+    else current.add(tagId)
+    const tagIds = [...current]
+    setActing(true)
+    try {
+      await api<{ tagIds: string[] }>(`/api/messages/${id}/tags`, {
+        method: "PUT",
+        body: JSON.stringify({ tagIds }),
+      })
+      const tags = allTags.filter((x) => tagIds.includes(x.id))
+      setMessage({ ...message, tags, tagIds })
+    } catch (err) {
+      toast.error(isApiError(err) ? err.message : t("message.tagsFailed"))
+    } finally {
+      setActing(false)
+    }
+  }
+
   if (loading || !message) {
     return (
       <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">
@@ -142,38 +188,55 @@ export function MessageView() {
           </Tooltip>
         }
         actions={
-          message.folder === "trash" ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={acting}
-              onClick={() => void restore()}
-            >
-              <ArrowCounterClockwiseIcon data-icon="inline-start" />
-              {t("message.restore")}
-            </Button>
-          ) : message.folder === "draft" ? (
-            <Button
-              type="button"
-              size="sm"
-              render={<Link to={`/compose?draft=${message.id}`} />}
-              nativeButton={false}
-            >
-              {t("message.editDraft")}
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={acting}
-              onClick={() => void trash()}
-            >
-              <TrashIcon data-icon="inline-start" />
-              {t("message.trash")}
-            </Button>
-          )
+          <div className="flex items-center gap-2">
+            {message.folder !== "draft" ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={acting}
+                onClick={() => void toggleStar()}
+              >
+                <StarIcon
+                  data-icon="inline-start"
+                  weight={message.isStarred ? "fill" : "regular"}
+                />
+                {message.isStarred ? t("mailbox.unstar") : t("mailbox.star")}
+              </Button>
+            ) : null}
+            {message.folder === "trash" ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={acting}
+                onClick={() => void restore()}
+              >
+                <ArrowCounterClockwiseIcon data-icon="inline-start" />
+                {t("message.restore")}
+              </Button>
+            ) : message.folder === "draft" ? (
+              <Button
+                type="button"
+                size="sm"
+                render={<Link to={`/compose?draft=${message.id}`} />}
+                nativeButton={false}
+              >
+                {t("message.editDraft")}
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={acting}
+                onClick={() => void trash()}
+              >
+                <TrashIcon data-icon="inline-start" />
+                {t("message.trash")}
+              </Button>
+            )}
+          </div>
         }
       />
 
@@ -203,6 +266,61 @@ export function MessageView() {
                 {formatFullTime(message.createdAt)}
               </time>
             </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {message.tags.map((tag) => (
+                <Badge
+                  key={tag.id}
+                  variant="secondary"
+                  style={
+                    tag.color && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(tag.color)
+                      ? { backgroundColor: tag.color, color: "#fff" }
+                      : undefined
+                  }
+                >
+                  {tag.name}
+                </Badge>
+              ))}
+              {message.folder !== "draft" ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  disabled={acting || allTags.length === 0}
+                  onClick={() => setEditingTags((v) => !v)}
+                >
+                  {editingTags ? t("app.cancel") : t("message.editTags")}
+                </Button>
+              ) : null}
+            </div>
+
+            {editingTags ? (
+              <div className="flex flex-wrap gap-2 rounded-2xl border border-border p-3">
+                {allTags.map((tag) => {
+                  const active = message.tags.some((x) => x.id === tag.id)
+                  return (
+                    <Button
+                      key={tag.id}
+                      type="button"
+                      size="xs"
+                      variant={active ? "default" : "outline"}
+                      disabled={acting}
+                      onClick={() => void toggleTag(tag.id)}
+                    >
+                      {tag.name}
+                    </Button>
+                  )
+                })}
+                {allTags.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    {t("message.noTagsYet")}{" "}
+                    <Link to="/settings" className="underline">
+                      {t("nav.settings")}
+                    </Link>
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           {message.hasUnsupportedAttachments ? (

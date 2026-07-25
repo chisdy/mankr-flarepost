@@ -2,8 +2,10 @@ import { Hono } from 'hono'
 import type { Env } from '../env'
 import { registerAliasRoutes } from '../aliases/routes'
 import { registerAuthRoutes } from '../auth/routes'
+import { registerFilterRoutes } from '../filters/routes'
 import { registerMessageRoutes } from '../messages/routes'
 import { registerSendRoutes } from '../send/routes'
+import { registerTagRoutes } from '../tags/routes'
 import { jsonError } from './errors'
 import { requireSession, type AppVariables } from './middleware'
 
@@ -16,6 +18,8 @@ export function createApp() {
   // Authenticated API routes
   app.use('/api/*', requireSession)
   registerAliasRoutes(app)
+  registerTagRoutes(app)
+  registerFilterRoutes(app)
   // Send before message :id routes so /api/messages/send is unambiguous
   registerSendRoutes(app)
   registerMessageRoutes(app)

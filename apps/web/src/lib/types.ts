@@ -17,6 +17,36 @@ export type Alias = {
 
 export type Folder = "inbox" | "sent" | "trash" | "draft"
 
+export type Tag = {
+  id: string
+  name: string
+  color: string | null
+  createdAt?: number
+}
+
+export type FilterCondition =
+  | { type: "from_contains"; value: string }
+  | { type: "to_alias_id"; value: string }
+  | { type: "subject_contains"; value: string }
+  | { type: "body_contains"; value: string }
+
+export type FilterActions = {
+  addTagIds?: string[]
+  setStarred?: true
+  moveToTrash?: true
+}
+
+export type FilterRule = {
+  id: string
+  name: string
+  enabled: boolean
+  priority: number
+  matchMode: "and" | "or"
+  conditions: FilterCondition[]
+  actions: FilterActions
+  createdAt: number
+}
+
 export type MessageListItem = {
   id: string
   folder: Folder
@@ -24,8 +54,10 @@ export type MessageListItem = {
   toAddrs: string[]
   subject: string
   isRead: boolean
+  isStarred: boolean
   hasUnsupportedAttachments: boolean
   createdAt: number
+  tagIds?: string[]
 }
 
 export type MessageDetail = MessageListItem & {
@@ -34,7 +66,13 @@ export type MessageDetail = MessageListItem & {
   aliasId: string
   direction: "inbound" | "outbound"
   lastErrorCode: string | null
+  tags: Tag[]
 }
+
+export type MailboxViewMode =
+  | { kind: "folder"; folder: Folder }
+  | { kind: "starred" }
+  | { kind: "tag"; tagId: string }
 
 export type SendErrorCode =
   | "not_configured"

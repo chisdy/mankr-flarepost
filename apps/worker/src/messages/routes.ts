@@ -14,6 +14,7 @@ import {
   markRead,
   moveToTrash,
   restoreMessage,
+  setStarred,
   updateDraft,
 } from './service'
 
@@ -91,9 +92,12 @@ async function parseDraftBody(
 
 export function registerMessageRoutes(app: MessageApp): void {
   app.get('/api/messages', async (c) => {
-    const folderRaw = c.req.query('folder') ?? 'inbox'
-    if (!isFolder(folderRaw)) {
-      return jsonError(c, 400, 'invalid_folder')
+    const starredRaw = c.req.query('starred')
+    const tagId = c.req.query('tagId')?.trim() || undefined
+    const starred = starredRaw === '1' || starredRaw === 'true'
+
+    if (starred && tagId) {
+      return jsonError(c, 400, 'invalid_query')
     }
 
     const limitRaw = c.req.query('limit')
@@ -101,6 +105,20 @@ export function registerMessageRoutes(app: MessageApp): void {
     const cursor = c.req.query('cursor') ?? null
 
     try {
+      if (starred) {
+        const result = await listMessages(c.env.DB, { starred: true, limit, cursor })
+        return c.json(result)
+      }
+      if (tagId) {
+        const result = await listMessages(c.env.DB, { tagId, limit, cursor })
+        return c.json(result)
+      }
+
+      const folderRaw = c.req.query('folder') ?? 'inbox'
+      if (!isFolder(folderRaw)) {
+        return jsonError(c, 400, 'invalid_folder')
+      }
+
       const result = await listMessages(c.env.DB, {
         folder: folderRaw,
         limit,
@@ -168,6 +186,21 @@ export function registerMessageRoutes(app: MessageApp): void {
     const ok = await markRead(c.env.DB, c.req.param('id'))
     if (!ok) return jsonError(c, 404, 'not_found')
     return c.json({ ok: true })
+  })
+
+  app.post('/api/messages/:id/star', async (c) => {
+    let body: { starred?: unknown }
+    try {
+      body = (await c.req.json()) as { starred?: unknown }
+    } catch {
+      return jsonError(c, 400, 'invalid_body')
+    }
+    if (typeof body.starred !== 'boolean') {
+      return jsonError(c, 400, 'invalid_body')
+    }
+    const ok = await setStarred(c.env.DB, c.req.param('id'), body.starred)
+    if (!ok) return jsonError(c, 404, 'not_found')
+    return c.json({ ok: true, starred: body.starred })
   })
 
   app.post('/api/messages/:id/trash', async (c) => {
