@@ -13,6 +13,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250724.0",
+    "tsx": "^4.20.3",
     "vitest": "^3.2.4"
   }
 }

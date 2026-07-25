@@ -8,6 +8,7 @@
     "deploy": "pnpm build && wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply mankr-mail --local",
     "db:migrate:remote": "wrangler d1 migrations apply mankr-mail --remote",
+    "init:admin": "echo 'Prefer POST /api/setup when users is empty. Or: ADMIN_USERNAME=... ADMIN_PASSWORD=... pnpm --filter @mankr/worker exec tsx scripts/init-admin.ts' && wrangler d1 execute mankr-mail --local --command \"SELECT COUNT(*) AS users FROM users\"",
     "test": "pnpm --filter @mankr/worker test"
   },
   "devDependencies": {
