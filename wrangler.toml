@@ -1,3 +1,16 @@
+# Mankr Mail — single Worker (API + Email Routing handler + SPA assets)
+# Deploy: see docs/DEPLOY.md
+# One-click: Deploy to Cloudflare button in README (public GitHub/GitLab repo)
+#
+# After first deploy / one-click:
+#   1. Set secrets: COOKIES_SECRET (required), RESEND_API_KEY (if SEND_CHANNEL=resend)
+#   2. Set vars: EMAIL_DOMAIN, SEND_CHANNEL (Total Free arbitrary send → "resend")
+#   3. Email Routing → catch-all or per-alias → this Worker
+#   4. Open /setup to create the admin user
+#
+# D1: replace database_id with your remote D1 ID for manual deploy
+#     (one-click / `wrangler d1 create` provisions a real ID)
+
 name = "mankr-mail"
 main = "apps/worker/src/index.ts"
 compatibility_date = "2026-07-25"
@@ -9,6 +22,8 @@ database_name = "mankr-mail"
 database_id = "local-placeholder-replace-on-deploy"
 migrations_dir = "apps/worker/migrations"
 
+# Cloudflare Email Sending binding (Paid / verified-destination path).
+# Total Free arbitrary outbound: use SEND_CHANNEL=resend instead — see docs/DEPLOY.md
 [[send_email]]
 name = "EMAIL"
 
@@ -19,5 +34,7 @@ not_found_handling = "single-page-application"
 run_worker_first = ["/api/*"]
 
 [vars]
+# cloudflare | resend | mailchannels — Total Free arbitrary send: "resend"
 SEND_CHANNEL = "cloudflare"
+# Your mail domain (aliases become local@EMAIL_DOMAIN)
 EMAIL_DOMAIN = "example.com"

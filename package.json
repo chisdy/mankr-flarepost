@@ -2,6 +2,9 @@
   "name": "mankr-maill",
   "private": true,
   "packageManager": "pnpm@11.17.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
     "dev": "pnpm --parallel --filter @mankr/web --filter @mankr/worker dev",
     "build": "pnpm --filter @mankr/web build && pnpm --filter @mankr/worker build",
@@ -14,5 +17,21 @@
   "devDependencies": {
     "wrangler": "^4.28.0",
     "typescript": "^5.9.2"
+  },
+  "cloudflare": {
+    "bindings": {
+      "COOKIES_SECRET": {
+        "description": "Required session cookie signing secret. Generate with `openssl rand -hex 32`."
+      },
+      "RESEND_API_KEY": {
+        "description": "Optional. Required when `SEND_CHANNEL=resend` (recommended Total Free arbitrary outbound). Get a free key at [resend.com](https://resend.com)."
+      },
+      "EMAIL_DOMAIN": {
+        "description": "Your mail domain without `@` (e.g. `example.com`). Aliases become `local@EMAIL_DOMAIN`."
+      },
+      "SEND_CHANNEL": {
+        "description": "`resend` (Total Free arbitrary send), `cloudflare` (Paid / verified destination), or `mailchannels`. See docs/DEPLOY.md."
+      }
+    }
   }
 }
