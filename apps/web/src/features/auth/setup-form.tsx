@@ -1,8 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
-import { Link, useNavigate } from "react-router"
+import { Link, Navigate, useNavigate } from "react-router"
 import { toast } from "sonner"
 import { z } from "zod"
 
@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { api, isApiError } from "@/lib/api"
-import type { AuthUser } from "@/lib/types"
+import type { AuthUser, SetupStatus } from "@/lib/types"
 
 type SetupValues = {
   username: string
@@ -39,6 +39,22 @@ export function SetupForm() {
   const navigate = useNavigate()
   const { setUser } = useAuth()
   const [submitting, setSubmitting] = useState(false)
+  const [initialized, setInitialized] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    api<SetupStatus>("/api/setup")
+      .then((status) => {
+        if (!cancelled) setInitialized(status.initialized)
+      })
+      .catch(() => {
+        // Fail closed: if status cannot be loaded, send user to login.
+        if (!cancelled) setInitialized(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const setupSchema = useMemo(
     () =>
@@ -77,6 +93,18 @@ export function SetupForm() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  if (initialized === null) {
+    return (
+      <div className="flex min-h-svh items-center justify-center text-sm text-muted-foreground">
+        {t("app.loading")}
+      </div>
+    )
+  }
+
+  if (initialized) {
+    return <Navigate to="/login" replace />
   }
 
   return (

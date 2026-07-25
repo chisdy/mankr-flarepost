@@ -3,6 +3,10 @@ export type AuthUser = {
   displayName: string | null
 }
 
+export type SetupStatus = {
+  initialized: boolean
+}
+
 export type Alias = {
   id: string
   address: string

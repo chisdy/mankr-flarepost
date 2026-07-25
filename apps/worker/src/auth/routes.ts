@@ -117,6 +117,11 @@ export function registerAuthRoutes(app: AuthApp): void {
     })
   })
 
+  app.get('/api/setup', async (c) => {
+    const existing = await countUsers(c.env.DB)
+    return c.json({ initialized: existing > 0 })
+  })
+
   app.post('/api/setup', async (c) => {
     const existing = await countUsers(c.env.DB)
     if (existing > 0) {

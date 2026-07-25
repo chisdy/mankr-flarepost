@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { Link, useNavigate } from "react-router"
@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { api, isApiError } from "@/lib/api"
-import type { AuthUser } from "@/lib/types"
+import type { AuthUser, SetupStatus } from "@/lib/types"
 
 type LoginValues = {
   username: string
@@ -37,6 +37,21 @@ export function LoginForm() {
   const navigate = useNavigate()
   const { setUser } = useAuth()
   const [submitting, setSubmitting] = useState(false)
+  const [needsSetup, setNeedsSetup] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    api<SetupStatus>("/api/setup")
+      .then((status) => {
+        if (!cancelled) setNeedsSetup(!status.initialized)
+      })
+      .catch(() => {
+        if (!cancelled) setNeedsSetup(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const loginSchema = useMemo(
     () =>
@@ -112,12 +127,14 @@ export function LoginForm() {
           <Button type="submit" form="login-form" disabled={submitting}>
             {submitting ? t("auth.signingIn") : t("auth.signIn")}
           </Button>
-          <p className="text-center text-sm text-muted-foreground">
-            {t("auth.firstTime")}{" "}
-            <Link to="/setup" className="text-foreground underline-offset-4 hover:underline">
-              {t("auth.createAdmin")}
-            </Link>
-          </p>
+          {needsSetup ? (
+            <p className="text-center text-sm text-muted-foreground">
+              {t("auth.firstTime")}{" "}
+              <Link to="/setup" className="text-foreground underline-offset-4 hover:underline">
+                {t("auth.createAdmin")}
+              </Link>
+            </p>
+          ) : null}
         </CardFooter>
       </Card>
     </div>
