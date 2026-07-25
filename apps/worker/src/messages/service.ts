@@ -233,3 +233,45 @@ export async function emptyTrash(db: D1Database): Promise<number> {
   const result = await db.prepare(`DELETE FROM messages WHERE folder = 'trash'`).run()
   return result.meta.changes ?? 0
 }
+
+export type InsertInboundMessageInput = {
+  aliasId: string
+  fromAddr: string
+  toAddrs: string[]
+  subject: string
+  textBody: string
+  htmlBody: string | null
+  hasUnsupportedAttachments: boolean
+}
+
+/** Insert an inbound message into the inbox folder. */
+export async function insertInboundMessage(
+  db: D1Database,
+  input: InsertInboundMessageInput,
+): Promise<{ id: string }> {
+  const id = crypto.randomUUID()
+  const createdAt = Date.now()
+  await db
+    .prepare(
+      `INSERT INTO messages (
+         id, alias_id, folder, direction, from_addr, to_addrs, subject,
+         text_body, html_body, is_read, has_unsupported_attachments, created_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      id,
+      input.aliasId,
+      'inbox',
+      'inbound',
+      input.fromAddr,
+      JSON.stringify(input.toAddrs),
+      input.subject,
+      input.textBody,
+      input.htmlBody,
+      0,
+      input.hasUnsupportedAttachments ? 1 : 0,
+      createdAt,
+    )
+    .run()
+  return { id }
+}

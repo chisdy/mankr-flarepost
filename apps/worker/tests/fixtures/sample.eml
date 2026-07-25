@@ -1,0 +1,32 @@
+MIME-Version: 1.0
+From: Sender Name <sender@example.com>
+To: Me <Me@Example.COM>
+Subject: Fixture multipart
+Date: Sat, 25 Jul 2026 12:00:00 +0000
+Content-Type: multipart/mixed; boundary="BOUND123"
+
+--BOUND123
+Content-Type: multipart/alternative; boundary="ALT456"
+
+--ALT456
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Hello plain text body.
+
+--ALT456
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+<p>Hello <b>HTML</b> body.</p>
+
+--ALT456--
+
+--BOUND123
+Content-Type: application/octet-stream; name="note.txt"
+Content-Disposition: attachment; filename="note.txt"
+Content-Transfer-Encoding: 7bit
+
+attachment-bytes
+
+--BOUND123--

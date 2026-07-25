@@ -1,5 +1,6 @@
 import type { Env } from './env'
 import { createApp } from './http/app'
+import { handleInboundEmail } from './inbound/handler'
 
 const app = createApp()
 
@@ -11,8 +12,7 @@ export default {
     }
     return env.ASSETS.fetch(request)
   },
-  async email(message: ForwardableEmailMessage, _env: Env): Promise<void> {
-    // Task 5
-    message.setReject('not implemented')
+  async email(message: ForwardableEmailMessage, env: Env): Promise<void> {
+    await handleInboundEmail(message, env)
   },
 }

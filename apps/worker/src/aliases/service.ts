@@ -105,6 +105,25 @@ export async function findAliasById(db: D1Database, id: string): Promise<Alias |
   return row ? rowToAlias(row) : null
 }
 
+/** Case-insensitive lookup of an enabled alias by full address. */
+export async function findEnabledAliasByAddress(
+  db: D1Database,
+  address: string,
+): Promise<Alias | null> {
+  const normalized = address.trim().toLowerCase()
+  if (!normalized) return null
+  const row = await db
+    .prepare(
+      `SELECT id, address, enabled, is_default, created_at
+       FROM aliases
+       WHERE lower(address) = ? AND enabled = 1
+       LIMIT 1`,
+    )
+    .bind(normalized)
+    .first<AliasRow>()
+  return row ? rowToAlias(row) : null
+}
+
 export async function createAlias(
   db: D1Database,
   input: { address: string; domain: string },
