@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import type { Env } from '../env'
 import { registerAliasRoutes } from '../aliases/routes'
 import { registerAuthRoutes } from '../auth/routes'
+import { registerMessageRoutes } from '../messages/routes'
 import { jsonError } from './errors'
 import { requireSession, type AppVariables } from './middleware'
 
@@ -14,6 +15,7 @@ export function createApp() {
   // Authenticated API routes
   app.use('/api/*', requireSession)
   registerAliasRoutes(app)
+  registerMessageRoutes(app)
 
   // Gate unknown / future /api/* routes
   app.all('/api/*', (c) => jsonError(c, 404, 'not_found'))
