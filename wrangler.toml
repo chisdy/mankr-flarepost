@@ -10,6 +10,9 @@
 #
 # D1: all-zero database_id is a Deploy-to-Cloudflare placeholder.
 #     One-click provisions a real D1 and rewrites this ID into the forked repo.
+#     Deploys never use the placeholder: `pnpm run db:ensure` resolves the real
+#     database by name (creating it if missing) into wrangler.deploy.toml, and
+#     `pnpm deploy` runs migrations + deploy against that generated config.
 
 name = "mankr-flarepost"
 main = "apps/worker/src/index.ts"
@@ -21,6 +24,14 @@ binding = "DB"
 database_name = "mankr-flarepost"
 database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "apps/worker/migrations"
+
+# Attachment bytes (free R2 tier).
+# `pnpm run r2:ensure` (also part of `pnpm deploy`) creates bucket_name +
+# preview_bucket_name if missing — no id rewrite needed.
+[[r2_buckets]]
+binding = "ATTACHMENTS"
+bucket_name = "mankr-flarepost-attachments"
+preview_bucket_name = "mankr-flarepost-attachments-preview"
 
 # Cloudflare Email Sending binding (Paid / verified-destination path).
 # Total Free arbitrary outbound: use SEND_CHANNEL=resend instead — see docs/DEPLOY.md

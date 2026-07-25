@@ -1,11 +1,12 @@
 import PostalMime from 'postal-mime'
+import type { InboundAttachmentPart } from '../attachments/service'
 
 export type ParsedInbound = {
   fromAddr: string
   subject: string
   textBody: string
   htmlBody: string | null
-  hasUnsupportedAttachments: boolean
+  attachments: InboundAttachmentPart[]
 }
 
 function mailboxAddress(addr: unknown): string | null {
@@ -20,14 +21,18 @@ function mailboxAddress(addr: unknown): string | null {
 export async function parseInboundMime(raw: ArrayBuffer | Uint8Array): Promise<ParsedInbound> {
   const email = await PostalMime.parse(raw)
   const fromAddr = mailboxAddress(email.from) ?? mailboxAddress(email.sender) ?? ''
-  const attachments = email.attachments ?? []
-  const hasUnsupportedAttachments = attachments.length > 0
+  const attachments: InboundAttachmentPart[] = (email.attachments ?? []).map((a) => ({
+    filename: a.filename,
+    mimeType: a.mimeType,
+    content: a.content,
+    encoding: a.encoding,
+  }))
 
   return {
     fromAddr,
     subject: email.subject ?? '',
     textBody: email.text ?? '',
     htmlBody: email.html ?? null,
-    hasUnsupportedAttachments,
+    attachments,
   }
 }

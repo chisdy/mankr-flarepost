@@ -21,7 +21,7 @@ corepack prepare pnpm@11.17.0 --activate
 - **单用户**：一个管理员账号
 - **单域名**：`EMAIL_DOMAIN` 指向你的域名
 - **别名上限**：5 个
-- **无附件**：不存、不发附件
+- **附件**：R2 存储；单文件 ≤5 MB、每封 ≤5 个、合计 ≤10 MB；**外发附件需 Resend**
 - **发信**：见下文 [Total Free 发信说明](#total-free-发信说明)
 
 ---
@@ -36,7 +36,16 @@ corepack prepare pnpm@11.17.0 --activate
    ```
 
 3. 在向导中确认 Worker 名、D1 等资源；构建命令会使用根目录 `pnpm build` / `pnpm deploy`（Workers Builds 会检测 `package.json` scripts）。
-4. **D1 migrations：** 根目录 `pnpm deploy` 会在 `wrangler deploy` 前执行 `wrangler d1 migrations apply DB --remote`（使用 binding 名，便于一键部署时自定义 D1 显示名）。若向导/Dashboard 的 Deploy 按钮只跑构建或 `wrangler deploy`、**未**执行完整 npm `deploy` script，请在首次部署后本地补跑一次：
+
+   > **必须核对：** Worker → **Settings → Builds** 里的 **Deploy command** 要是 `pnpm run deploy`。若它是默认的 `npx wrangler deploy`，则既不跑迁移、也会因为仓库里的全零占位 `database_id` 而失败或部署出坏绑定 —— 表现就是「构建成功但线上还是旧版本」。
+
+4. **D1 migrations：** 根目录 `pnpm deploy` 的顺序是 `build` → `db:ensure` → `d1 migrations apply DB --remote` → `wrangler deploy`。`db:ensure`（`scripts/ensure-d1.mjs`）按 `database_name` 查真实 D1、没有就创建，把 ID 写进 gitignore 的 `wrangler.deploy.toml`，后两步都用这份生成配置。已知 ID 时可用环境变量跳过查询：
+
+   ```bash
+   D1_DATABASE_ID=<你的-d1-uuid> pnpm deploy
+   ```
+
+   若线上迁移落后（例如只跑过 `wrangler deploy`），补跑一次：
 
    ```bash
    pnpm db:migrate:remote
@@ -64,8 +73,11 @@ corepack prepare pnpm@11.17.0 --activate
 pnpm install
 
 # 2. 编辑 wrangler.toml
-#    - 将 [[d1_databases]].database_id 换成你在 CF 创建的 D1 ID
-#      （首次可用：npx wrangler d1 create mankr-flarepost）
+#    - database_id 不用改：db:ensure 按 database_name 解析真实 D1 并写入
+#      wrangler.deploy.toml。若你账号里的 D1 显示名不同，改 database_name
+#      或用 D1_DATABASE_ID=<uuid> 指定
+#    - R2：`pnpm run r2:ensure`（或 `pnpm deploy` 内自动）会创建
+#      mankr-flarepost-attachments / mankr-flarepost-attachments-preview
 #    - [vars] 中设置 EMAIL_DOMAIN、SEND_CHANNEL
 
 # 3. Secrets（勿写入仓库）
@@ -96,6 +108,11 @@ pnpm dev
 
 - [ ] 若用 **`pnpm deploy`**：脚本已包含 `wrangler d1 migrations apply DB --remote`，一般无需再跑
 - [ ] 若只用 **Dashboard Deploy 按钮**（可能未跑完整 npm `deploy` script）：本地执行一次 `pnpm db:migrate:remote`
+
+### 1b. 确认 R2 附件桶存在
+
+- [ ] 若用 **`pnpm deploy`**：已跑 `r2:ensure`，会创建 `mankr-flarepost-attachments`（及 preview 桶）
+- [ ] 否则本地执行：`pnpm run r2:ensure`
 
 ### 2. 确认环境变量与 Secrets
 
@@ -157,6 +174,12 @@ npx wrangler secret put RESEND_API_KEY
 ---
 
 ## 常见问题
+
+**构建显示成功，但线上还是旧版本？**  
+先确认 Worker → Settings → Builds 的 **Deploy command** 是 `pnpm run deploy`；默认的 `npx wrangler deploy` 会跳过 `db:ensure` 与迁移，并直接使用仓库里的全零占位 `database_id`。再确认你访问的自定义域绑定的是 `wrangler.toml` 里 `name` 指定的那个 Worker —— 改过 `name` 之后 `wrangler deploy` 会写入新脚本，旧脚本仍占着原域名。快速判断线上代码新旧：`curl -s https://<域名>/ | grep -o 'index-[^"]*\.js'` 取到 bundle 后 grep 新功能字符串，别只看 HTTP 状态码（SPA 回退会让任何路径都返回 200）。
+
+**`db:ensure` 报 `no D1 named ... but these exist`？**  
+`database_name` 与账号里的真实 D1 显示名不一致（例如只在配置里改过名）。脚本拒绝新建空库以免看起来像数据丢失：把 `database_name` 改成真实名字，或 `D1_DATABASE_ID=<uuid>`；确实要新建才用 `D1_ALLOW_CREATE=1`。
 
 **一键部署后 D1 `database_id` 仍是占位？**  
 Deploy to Cloudflare 通常会自动创建并回写 D1 ID。若手工部署，请用 `wrangler d1 create` 后把 ID 写入 `wrangler.toml`。

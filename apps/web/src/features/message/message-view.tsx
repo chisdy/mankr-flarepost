@@ -21,7 +21,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { api, isApiError } from "@/lib/api"
+import { api, downloadAttachment, isApiError } from "@/lib/api"
 import { formatFullTime } from "@/lib/format"
 import { sanitize } from "@/lib/sanitize"
 import type { MessageDetail, Tag } from "@/lib/types"
@@ -328,7 +328,36 @@ export function MessageView() {
               role="status"
               className="rounded-2xl bg-secondary px-4 py-3 text-sm text-secondary-foreground"
             >
-              {t("message.attachmentBanner")}
+              {t("message.attachmentPartialBanner")}
+            </div>
+          ) : null}
+
+          {(message.attachments?.length ?? 0) > 0 ? (
+            <div className="flex flex-col gap-2">
+              <p className="text-sm font-medium">{t("message.attachments")}</p>
+              <ul className="flex flex-col gap-1">
+                {message.attachments!.map((att) => (
+                  <li key={att.id}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        void downloadAttachment(att.id, att.filename).catch((err) => {
+                          toast.error(
+                            isApiError(err) ? err.message : t("message.downloadFailed")
+                          )
+                        })
+                      }}
+                    >
+                      {att.filename}
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        ({Math.max(1, Math.round(att.sizeBytes / 1024))} KB)
+                      </span>
+                    </Button>
+                  </li>
+                ))}
+              </ul>
             </div>
           ) : null}
 

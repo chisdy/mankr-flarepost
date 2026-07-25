@@ -5,7 +5,7 @@ Vite + React SPA for Mankr Flarepost (shadcn preset `b39gyV42i`).
 ## Free-tier boundaries (P0)
 
 - **Aliases:** max **5** per installation
-- **Attachments:** not supported (inbound attachment banners only)
+- **Attachments:** R2-backed; download inbound; compose upload; outbound via Resend
 - **Users:** single admin account
 - **Outbound:** Cloudflare arbitrary send needs Paid; Total Free path uses `SEND_CHANNEL=resend`
 

@@ -10,7 +10,7 @@ const fixturePath = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 's
 const sampleEml = readFileSync(fixturePath)
 
 describe('parseInboundMime', () => {
-  it('extracts text, html, and attachment flag from multipart fixture', async () => {
+  it('extracts text, html, and attachment parts from multipart fixture', async () => {
     const parsed = await parseInboundMime(sampleEml.buffer.slice(
       sampleEml.byteOffset,
       sampleEml.byteOffset + sampleEml.byteLength,
@@ -20,7 +20,8 @@ describe('parseInboundMime', () => {
     expect(parsed.fromAddr).toMatch(/sender@example\.com/i)
     expect(parsed.textBody).toContain('Hello plain text body')
     expect(parsed.htmlBody).toContain('<b>HTML</b>')
-    expect(parsed.hasUnsupportedAttachments).toBe(true)
+    expect(parsed.attachments).toHaveLength(1)
+    expect(parsed.attachments[0]?.filename).toBe('note.txt')
   })
 })
 
@@ -106,10 +107,16 @@ describe('handleInboundEmail', () => {
         expect.stringContaining('Hello plain text body'),
         expect.stringContaining('<b>HTML</b>'),
         0, // is_read
-        1, // has_unsupported_attachments
+        0, // has_unsupported_attachments (set true later if R2 missing / skip)
         expect.any(Number), // created_at
       ]),
     )
+    // Without R2 binding, skipped attachments flip the flag
+    expect(
+      prepare.mock.calls.some((c) =>
+        /UPDATE\s+messages\s+SET\s+has_unsupported_attachments\s*=\s*1/i.test(String(c[0])),
+      ),
+    ).toBe(true)
     // filters queried after insert
     expect(
       prepare.mock.calls.some((c) => /FROM\s+filters/i.test(String(c[0]))),

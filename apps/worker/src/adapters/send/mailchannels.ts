@@ -9,6 +9,9 @@ export function createMailchannelsSendAdapter(env: {
 }): SendAdapter {
   return {
     async send(input: SendInput): Promise<SendResult> {
+      if (input.attachments && input.attachments.length > 0) {
+        return { error: 'attachments_unsupported' }
+      }
       const apiKey = env.MAILCHANNELS_API_KEY?.trim()
       if (!apiKey) {
         return { error: 'not_configured' }

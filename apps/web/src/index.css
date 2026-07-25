@@ -128,3 +128,29 @@
     @apply font-sans;
     }
 }
+
+.compose-editor p {
+  margin: 0.4em 0;
+}
+.compose-editor ul,
+.compose-editor ol {
+  margin: 0.4em 0;
+  padding-left: 1.25rem;
+}
+.compose-editor ul {
+  list-style: disc;
+}
+.compose-editor ol {
+  list-style: decimal;
+}
+.compose-editor a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+.compose-editor p.is-editor-empty:first-child::before {
+  color: var(--muted-foreground);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}

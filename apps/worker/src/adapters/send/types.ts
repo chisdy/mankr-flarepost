@@ -3,6 +3,13 @@ export type SendErrorCode =
   | 'rate_limited'
   | 'invalid_address'
   | 'provider_error'
+  | 'attachments_unsupported'
+
+export type SendAttachment = {
+  filename: string
+  contentType: string
+  contentBase64: string
+}
 
 export type SendInput = {
   from: string
@@ -11,6 +18,7 @@ export type SendInput = {
   text: string
   html?: string
   replyTo?: string
+  attachments?: SendAttachment[]
 }
 
 export type SendResult = { id?: string } | { error: SendErrorCode }

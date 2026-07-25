@@ -15,6 +15,8 @@ import {
   updateDraft,
   deleteDraft,
   setStarred,
+  escapeLikePattern,
+  searchMessages,
 } from '../src/messages/service'
 
 describe('restoreTargetFolder', () => {
@@ -226,10 +228,11 @@ describe('folder actions', () => {
     await expect(restoreMessage(db, 'm1')).resolves.toBeNull()
   })
 
-  it('emptyTrash deletes message_tags for trash then messages', async () => {
+  it('emptyTrash deletes message_tags, attachments, then trash messages', async () => {
     const run = vi
       .fn()
       .mockResolvedValueOnce({ meta: { changes: 2 }, success: true })
+      .mockResolvedValueOnce({ meta: { changes: 1 }, success: true })
       .mockResolvedValueOnce({ meta: { changes: 3 }, success: true })
     const prepare = vi.fn().mockReturnValue({ run })
     const db = { prepare } as unknown as D1Database
@@ -237,7 +240,9 @@ describe('folder actions', () => {
     expect(await emptyTrash(db)).toBe(3)
     const tagSql = String(prepare.mock.calls[0]?.[0] ?? '')
     expect(tagSql).toMatch(/DELETE\s+FROM\s+message_tags/i)
-    const msgSql = String(prepare.mock.calls[1]?.[0] ?? '')
+    const attSql = String(prepare.mock.calls[1]?.[0] ?? '')
+    expect(attSql).toMatch(/DELETE\s+FROM\s+attachments/i)
+    const msgSql = String(prepare.mock.calls[2]?.[0] ?? '')
     expect(msgSql).toMatch(/DELETE\s+FROM\s+messages\s+WHERE\s+folder\s*=\s*'trash'/i)
   })
 })
@@ -296,9 +301,10 @@ describe('drafts', () => {
     expect(sql).toMatch(/WHERE\s+id\s*=\s*\?\s+AND\s+folder\s*=\s*'draft'/i)
   })
 
-  it('deleteDraft removes message_tags then draft row', async () => {
+  it('deleteDraft removes message_tags, attachments, then draft row', async () => {
     const run = vi
       .fn()
+      .mockResolvedValueOnce({ meta: { changes: 1 }, success: true })
       .mockResolvedValueOnce({ meta: { changes: 1 }, success: true })
       .mockResolvedValueOnce({ meta: { changes: 1 }, success: true })
     const bind = vi.fn().mockReturnValue({ run })
@@ -308,7 +314,9 @@ describe('drafts', () => {
     expect(await deleteDraft(db, 'd1')).toBe(true)
     const tagSql = String(prepare.mock.calls[0]?.[0] ?? '')
     expect(tagSql).toMatch(/DELETE\s+FROM\s+message_tags\s+WHERE\s+message_id\s*=\s*\?/i)
-    const sql = String(prepare.mock.calls[1]?.[0] ?? '')
+    const attSql = String(prepare.mock.calls[1]?.[0] ?? '')
+    expect(attSql).toMatch(/DELETE\s+FROM\s+attachments\s+WHERE\s+message_id\s*=\s*\?/i)
+    const sql = String(prepare.mock.calls[2]?.[0] ?? '')
     expect(sql).toMatch(/DELETE\s+FROM\s+messages\s+WHERE\s+id\s*=\s*\?\s+AND\s+folder\s*=\s*'draft'/i)
     expect(bind).toHaveBeenCalledWith('d1')
   })
@@ -328,5 +336,37 @@ describe('messages routes auth', () => {
     const res = await app.request('http://localhost/api/messages?folder=inbox', {}, env)
     expect(res.status).toBe(401)
     await expect(res.json()).resolves.toEqual({ error: 'unauthorized' })
+  })
+})
+
+describe('escapeLikePattern', () => {
+  it('escapes %, _, and backslash', () => {
+    expect(escapeLikePattern('a%b_c\\d')).toBe('a\\%b\\_c\\\\d')
+  })
+})
+
+describe('searchMessages', () => {
+  it('returns empty for blank query without querying', async () => {
+    const prepare = vi.fn()
+    const db = { prepare } as unknown as D1Database
+    const result = await searchMessages(db, { query: '   ' })
+    expect(result).toEqual({ items: [], nextCursor: null })
+    expect(prepare).not.toHaveBeenCalled()
+  })
+
+  it('searches subject/from/body excluding trash and draft', async () => {
+    const rows = [mockMessageRow({ subject: 'Invoice April' })]
+    const { prepare, bind, db } = mockDbForList(rows)
+
+    const result = await searchMessages(db, { query: 'Invoice', limit: 20 })
+
+    expect(result.items).toHaveLength(1)
+    expect(result.items[0]?.subject).toBe('Invoice April')
+    const sql = String(prepare.mock.calls[0]?.[0] ?? '')
+    expect(sql).toMatch(/folder\s+NOT\s+IN\s*\(\s*'trash'\s*,\s*'draft'\s*\)/i)
+    expect(sql).toMatch(/subject\s+LIKE\s+\?\s+ESCAPE/i)
+    expect(sql).toMatch(/from_addr\s+LIKE\s+\?\s+ESCAPE/i)
+    expect(sql).toMatch(/text_body\s+LIKE\s+\?\s+ESCAPE/i)
+    expect(bind).toHaveBeenCalledWith('%Invoice%', '%Invoice%', '%Invoice%', 21)
   })
 })

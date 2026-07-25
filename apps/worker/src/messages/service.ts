@@ -1,3 +1,6 @@
+import type { AttachmentMeta } from '../attachments/service'
+import { listAttachmentsForMessage } from '../attachments/service'
+
 export type Folder = 'inbox' | 'sent' | 'trash' | 'draft'
 export type Direction = 'inbound' | 'outbound'
 
@@ -27,6 +30,7 @@ export type MessageDetail = MessageListItem & {
   direction: Direction
   lastErrorCode: string | null
   tags: MessageTag[]
+  attachments: AttachmentMeta[]
 }
 
 export type MessageRow = {
@@ -126,6 +130,7 @@ export function rowToDetail(row: MessageRow, tags: MessageTag[] = []): MessageDe
     direction: row.direction,
     lastErrorCode: row.last_error_code,
     tags,
+    attachments: [],
   }
 }
 
@@ -231,6 +236,68 @@ export async function listMessages(
   }
 }
 
+const MAX_SEARCH_QUERY = 100
+
+/** Escape `%`, `_`, and `\` for SQLite LIKE with ESCAPE '\'. */
+export function escapeLikePattern(value: string): string {
+  return value.replace(/([\\%_])/g, '\\$1')
+}
+
+export type SearchMessagesOpts = {
+  query: string
+  limit?: number
+  cursor?: string | null
+}
+
+/** Search subject / from / text body (LIKE). Excludes trash and drafts. */
+export async function searchMessages(
+  db: D1Database,
+  opts: SearchMessagesOpts,
+): Promise<{ items: MessageListItem[]; nextCursor: string | null }> {
+  const raw = opts.query.trim().slice(0, MAX_SEARCH_QUERY)
+  if (!raw) {
+    return { items: [], nextCursor: null }
+  }
+
+  const limit = clampLimit(opts.limit)
+  const fetchLimit = limit + 1
+  const cursor = cursorClause(opts.cursor)
+  const pattern = `%${escapeLikePattern(raw)}%`
+
+  const { results: rows } = await db
+    .prepare(
+      `SELECT ${MESSAGE_COLUMNS}
+       FROM messages
+       WHERE folder NOT IN ('trash', 'draft')
+         AND (
+           subject LIKE ? ESCAPE '\\'
+           OR from_addr LIKE ? ESCAPE '\\'
+           OR text_body LIKE ? ESCAPE '\\'
+         )
+         ${cursor.sql}
+       ORDER BY created_at DESC, id DESC
+       LIMIT ?`,
+    )
+    .bind(pattern, pattern, pattern, ...cursor.binds, fetchLimit)
+    .all<MessageRow>()
+
+  const results = rows ?? []
+  const hasMore = results.length > limit
+  const page = hasMore ? results.slice(0, limit) : results
+  const last = page[page.length - 1]
+  const nextCursor = hasMore && last ? encodeCursor(last.created_at, last.id) : null
+
+  const tagIdsByMessage = await loadTagIdsForMessages(
+    db,
+    page.map((r) => r.id),
+  )
+
+  return {
+    items: page.map((row) => rowToListItem(row, tagIdsByMessage.get(row.id) ?? [])),
+    nextCursor,
+  }
+}
+
 async function loadTagIdsForMessages(
   db: D1Database,
   messageIds: string[],
@@ -282,7 +349,8 @@ export async function getMessage(db: D1Database, id: string): Promise<MessageDet
     .first<MessageRow>()
   if (!row) return null
   const tags = await loadTagsForMessage(db, id)
-  return rowToDetail(row, tags)
+  const attachments = await listAttachmentsForMessage(db, id)
+  return { ...rowToDetail(row, tags), attachments }
 }
 
 export async function setStarred(
@@ -341,10 +409,24 @@ export async function restoreMessage(
 }
 
 /** Delete message_tags for trash messages, then delete trash messages (FK-safe). */
+export async function listTrashMessageIds(db: D1Database): Promise<string[]> {
+  const { results } = await db
+    .prepare(`SELECT id FROM messages WHERE folder = 'trash'`)
+    .all<{ id: string }>()
+  return (results ?? []).map((r) => r.id)
+}
+
 export async function emptyTrash(db: D1Database): Promise<number> {
   await db
     .prepare(
       `DELETE FROM message_tags
+       WHERE message_id IN (SELECT id FROM messages WHERE folder = 'trash')`,
+    )
+    .run()
+  // Clear attachment rows before deleting messages (FK is SET NULL, but we hard-delete)
+  await db
+    .prepare(
+      `DELETE FROM attachments
        WHERE message_id IN (SELECT id FROM messages WHERE folder = 'trash')`,
     )
     .run()
@@ -502,9 +584,10 @@ export async function updateDraft(
   return (result.meta.changes ?? 0) > 0
 }
 
-/** Hard-delete a draft (and its tags). Returns false if not found or not a draft. */
+/** Hard-delete a draft (and its tags / attachment rows). Returns false if not found or not a draft. */
 export async function deleteDraft(db: D1Database, id: string): Promise<boolean> {
   await db.prepare(`DELETE FROM message_tags WHERE message_id = ?`).bind(id).run()
+  await db.prepare(`DELETE FROM attachments WHERE message_id = ?`).bind(id).run()
   const result = await db
     .prepare(`DELETE FROM messages WHERE id = ? AND folder = 'draft'`)
     .bind(id)

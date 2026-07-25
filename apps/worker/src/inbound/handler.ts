@@ -1,15 +1,13 @@
-import type { Env } from '../env'
+import { storeInboundAttachments } from '../attachments/service'
 import { findEnabledAliasByAddress } from '../aliases/service'
+import type { Env } from '../env'
 import { applyFiltersToMessage } from '../filters/service'
 import { insertInboundMessage } from '../messages/service'
 import { parseInboundMime } from './parse'
 
 /**
- * Cloudflare Email Routing inbound handler.
- *
- * Unknown / disabled recipients: accept and drop (early return, no setReject)
- * to avoid SMTP backscatter. Matched enabled aliases are parsed and stored
- * in D1 inbox; attachments set has_unsupported_attachments=1 but body is kept.
+ * Email Routing Worker entry: accept mail for enabled aliases, store message
+ * in D1 inbox; store attachments in R2 when binding is available.
  * After insert, enabled filters are applied (tags / star / trash).
  */
 export async function handleInboundEmail(
@@ -33,8 +31,30 @@ export async function handleInboundEmail(
     subject: parsed.subject,
     textBody: parsed.textBody,
     htmlBody: parsed.htmlBody,
-    hasUnsupportedAttachments: parsed.hasUnsupportedAttachments,
+    hasUnsupportedAttachments: false,
   })
+
+  let skipped = false
+  if (parsed.attachments.length > 0) {
+    if (env.ATTACHMENTS) {
+      const result = await storeInboundAttachments(
+        env.DB,
+        env.ATTACHMENTS,
+        id,
+        parsed.attachments,
+      )
+      skipped = result.skipped
+    } else {
+      skipped = true
+    }
+  }
+
+  if (skipped) {
+    await env.DB
+      .prepare(`UPDATE messages SET has_unsupported_attachments = 1 WHERE id = ?`)
+      .bind(id)
+      .run()
+  }
 
   await applyFiltersToMessage(env.DB, id)
 }

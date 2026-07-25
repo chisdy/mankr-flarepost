@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { FloppyDiskIcon, PaperPlaneTiltIcon, TrashIcon } from "@phosphor-icons/react"
-import { useEffect, useMemo, useState } from "react"
-import { Controller, useForm } from "react-hook-form"
+import { FloppyDiskIcon, PaperPlaneTiltIcon, PaperclipIcon, TrashIcon } from "@phosphor-icons/react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { Controller, useForm, useWatch } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { useNavigate, useSearchParams } from "react-router"
 import { toast } from "sonner"
@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
+import { RichTextEditor } from "@/features/compose/rich-text-editor"
 import { api, isApiError } from "@/lib/api"
 import {
   forwardSubject,
@@ -34,14 +34,19 @@ import {
   quoteReplyBody,
   replySubject,
 } from "@/lib/format"
-import type { Alias, MessageDetail, SendErrorCode } from "@/lib/types"
+import { htmlHasText, htmlToText, textToHtml } from "@/lib/html-text"
+import type { Alias, AttachmentMeta, MessageDetail, SendErrorCode } from "@/lib/types"
 
 type ComposeValues = {
   fromAliasId: string
   to: string
   subject: string
-  text: string
+  html: string
 }
+
+const AUTOSAVE_MS = 1500
+const MAX_ATTACHMENTS = 5
+const MAX_FILE_BYTES = 5 * 1024 * 1024
 
 export function ComposeView() {
   const { t } = useTranslation()
@@ -58,6 +63,23 @@ export function ComposeView() {
   const [deletingDraft, setDeletingDraft] = useState(false)
   const [replyToMessageId, setReplyToMessageId] = useState<string | undefined>()
   const [draftId, setDraftId] = useState<string | undefined>(draftIdParam ?? undefined)
+  const [editorKey, setEditorKey] = useState(0)
+  const [attachments, setAttachments] = useState<AttachmentMeta[]>([])
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">(
+    "idle"
+  )
+  const draftIdRef = useRef(draftId)
+  const savingRef = useRef(false)
+  const skipAutoSaveRef = useRef(true)
+  const bootstrapDoneRef = useRef(false)
+  /** Draft id already loaded into the form (avoids reload after autosave sets ?draft=). */
+  const hydratedDraftRef = useRef<string | undefined>(undefined)
+
+  useEffect(() => {
+    draftIdRef.current = draftId
+  }, [draftId])
 
   const composeSchema = useMemo(
     () =>
@@ -78,7 +100,7 @@ export function ComposeView() {
             t("compose.toInvalid")
           ),
         subject: z.string(),
-        text: z.string(),
+        html: z.string(),
       }),
     [t]
   )
@@ -99,7 +121,7 @@ export function ComposeView() {
                 .every((addr) => addr.includes("@")),
             t("compose.toInvalid")
           ),
-        text: z.string().min(1, t("compose.bodyRequired")),
+        html: z.string().refine((v) => htmlHasText(v), t("compose.bodyRequired")),
       }),
     [composeSchema, t]
   )
@@ -110,9 +132,11 @@ export function ComposeView() {
       fromAliasId: "",
       to: "",
       subject: "",
-      text: "",
+      html: "",
     },
   })
+
+  const watched = useWatch({ control: form.control })
 
   const aliasItems = useMemo(
     () =>
@@ -134,6 +158,22 @@ export function ComposeView() {
   useEffect(() => {
     let cancelled = false
 
+    // Autosave may navigate to ?draft=id; don't wipe the in-progress editor.
+    if (
+      draftIdParam &&
+      hydratedDraftRef.current === draftIdParam &&
+      !replyId &&
+      !forwardId
+    ) {
+      skipAutoSaveRef.current = false
+      bootstrapDoneRef.current = true
+      setLoading(false)
+      return
+    }
+
+    bootstrapDoneRef.current = false
+    skipAutoSaveRef.current = true
+
     async function bootstrap() {
       setLoading(true)
       try {
@@ -150,7 +190,7 @@ export function ComposeView() {
           fromAliasId: defaultAlias?.id ?? "",
           to: "",
           subject: "",
-          text: "",
+          html: "",
         }
 
         if (draftIdParam) {
@@ -167,24 +207,27 @@ export function ComposeView() {
             fromAliasId: draftAlias?.id ?? "",
             to: original.toAddrs.join(", "),
             subject: original.subject,
-            text: original.textBody,
+            html: original.htmlBody || textToHtml(original.textBody),
           }
           setDraftId(original.id)
+          hydratedDraftRef.current = original.id
+          setAttachments(original.attachments ?? [])
         } else if (replyId) {
           const original = await api<MessageDetail>(`/api/messages/${replyId}`)
           if (cancelled) return
           const replyAlias =
             enabled.find((a) => a.id === original.aliasId) ?? defaultAlias
+          const quote = quoteReplyBody(
+            original.fromAddr,
+            original.createdAt,
+            original.textBody,
+            (when, from) => t("compose.quoteHeader", { when, from })
+          )
           defaults = {
             fromAliasId: replyAlias?.id ?? "",
             to: original.fromAddr,
             subject: replySubject(original.subject, t("app.noSubject")),
-            text: quoteReplyBody(
-              original.fromAddr,
-              original.createdAt,
-              original.textBody,
-              (when, from) => t("compose.quoteHeader", { when, from })
-            ),
+            html: textToHtml(quote),
           }
           setReplyToMessageId(original.id)
         } else if (forwardId) {
@@ -192,27 +235,34 @@ export function ComposeView() {
           if (cancelled) return
           const forwardAlias =
             enabled.find((a) => a.id === original.aliasId) ?? defaultAlias
+          const quote = quoteForwardBody(
+            original.fromAddr,
+            original.toAddrs,
+            original.createdAt,
+            original.subject || t("app.noSubject"),
+            original.textBody,
+            {
+              from: t("message.from"),
+              to: t("message.to"),
+              date: t("message.date"),
+              subject: t("compose.subject"),
+            }
+          )
           defaults = {
             fromAliasId: forwardAlias?.id ?? "",
             to: "",
             subject: forwardSubject(original.subject, t("app.noSubject")),
-            text: quoteForwardBody(
-              original.fromAddr,
-              original.toAddrs,
-              original.createdAt,
-              original.subject || t("app.noSubject"),
-              original.textBody,
-              {
-                from: t("message.from"),
-                to: t("message.to"),
-                date: t("message.date"),
-                subject: t("compose.subject"),
-              }
-            ),
+            html: textToHtml(quote),
           }
         }
 
         form.reset(defaults)
+        setEditorKey((k) => k + 1)
+        bootstrapDoneRef.current = true
+        // Allow autosave after user edits (next tick after watch settles)
+        window.setTimeout(() => {
+          if (!cancelled) skipAutoSaveRef.current = false
+        }, 0)
       } catch (err) {
         toast.error(isApiError(err) ? err.message : t("compose.loadFailed"))
       } finally {
@@ -233,56 +283,153 @@ export function ComposeView() {
       .filter(Boolean)
   }
 
-  async function saveDraft() {
-    const values = form.getValues()
+  async function persistDraft(
+    values: ComposeValues,
+    opts: { silent: boolean }
+  ): Promise<boolean> {
     if (!values.fromAliasId) {
-      toast.error(t("compose.selectFrom"))
-      return
+      if (!opts.silent) toast.error(t("compose.selectFrom"))
+      return false
     }
 
-    setSavingDraft(true)
+    const payload = {
+      fromAliasId: values.fromAliasId,
+      to: parseRecipients(values.to),
+      subject: values.subject,
+      text: htmlToText(values.html),
+      html: values.html,
+      attachmentIds: attachments.map((a) => a.id),
+    }
+
+    if (opts.silent) setAutoSaveStatus("saving")
+    else setSavingDraft(true)
+
     try {
-      const payload = {
-        fromAliasId: values.fromAliasId,
-        to: parseRecipients(values.to),
-        subject: values.subject,
-        text: values.text,
-      }
-      if (draftId) {
-        await api(`/api/messages/drafts/${draftId}`, {
+      const currentId = draftIdRef.current
+      if (currentId) {
+        await api(`/api/messages/drafts/${currentId}`, {
           method: "PUT",
           body: JSON.stringify(payload),
         })
-        toast.success(t("compose.draftSaved"))
       } else {
         const result = await api<{ id: string }>("/api/messages/drafts", {
           method: "POST",
           body: JSON.stringify(payload),
         })
         setDraftId(result.id)
-        toast.success(t("compose.draftSaved"))
+        draftIdRef.current = result.id
+        hydratedDraftRef.current = result.id
         navigate(`/compose?draft=${result.id}`, { replace: true })
       }
+      if (opts.silent) setAutoSaveStatus("saved")
+      else toast.success(t("compose.draftSaved"))
+      return true
     } catch (err) {
-      toast.error(isApiError(err) ? err.message : t("compose.draftSaveFailed"))
+      if (opts.silent) setAutoSaveStatus("error")
+      else toast.error(isApiError(err) ? err.message : t("compose.draftSaveFailed"))
+      return false
     } finally {
-      setSavingDraft(false)
+      if (!opts.silent) setSavingDraft(false)
     }
   }
+
+  async function saveDraft() {
+    await persistDraft(form.getValues(), { silent: false })
+  }
+
+  // Debounced auto-save
+  useEffect(() => {
+    if (loading || skipAutoSaveRef.current || !bootstrapDoneRef.current) return
+    if (!watched.fromAliasId) return
+
+    const timer = window.setTimeout(() => {
+      if (savingRef.current || submitting || deletingDraft) return
+      savingRef.current = true
+      void persistDraft(
+        {
+          fromAliasId: watched.fromAliasId ?? "",
+          to: watched.to ?? "",
+          subject: watched.subject ?? "",
+          html: watched.html ?? "",
+        },
+        { silent: true }
+      ).finally(() => {
+        savingRef.current = false
+      })
+    }, AUTOSAVE_MS)
+
+    return () => window.clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- persistDraft uses latest refs/form
+  }, [
+    watched.fromAliasId,
+    watched.to,
+    watched.subject,
+    watched.html,
+    attachments,
+    loading,
+    submitting,
+    deletingDraft,
+  ])
 
   async function deleteCurrentDraft() {
     if (!draftId) return
     if (!window.confirm(t("compose.deleteDraftConfirm"))) return
 
     setDeletingDraft(true)
+    skipAutoSaveRef.current = true
     try {
       await api(`/api/messages/drafts/${draftId}`, { method: "DELETE" })
       toast.success(t("compose.draftDeleted"))
       navigate("/draft")
     } catch (err) {
       toast.error(isApiError(err) ? err.message : t("compose.draftDeleteFailed"))
+      skipAutoSaveRef.current = false
     } finally {
       setDeletingDraft(false)
+    }
+  }
+
+  async function onPickFiles(fileList: FileList | null) {
+    if (!fileList || fileList.length === 0) return
+    if (attachments.length >= MAX_ATTACHMENTS) {
+      toast.error(t("compose.attachmentLimit"))
+      return
+    }
+
+    setUploading(true)
+    try {
+      for (const file of Array.from(fileList)) {
+        if (attachments.length >= MAX_ATTACHMENTS) {
+          toast.error(t("compose.attachmentLimit"))
+          break
+        }
+        if (file.size > MAX_FILE_BYTES) {
+          toast.error(t("compose.attachmentTooLarge", { name: file.name }))
+          continue
+        }
+        const form = new FormData()
+        form.append("file", file)
+        if (draftIdRef.current) form.append("messageId", draftIdRef.current)
+        const meta = await api<AttachmentMeta>("/api/attachments", {
+          method: "POST",
+          body: form,
+        })
+        setAttachments((prev) => [...prev, meta])
+      }
+    } catch (err) {
+      toast.error(isApiError(err) ? err.message : t("compose.attachmentUploadFailed"))
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ""
+    }
+  }
+
+  async function removeAttachment(id: string) {
+    try {
+      await api(`/api/attachments/${id}`, { method: "DELETE" })
+      setAttachments((prev) => prev.filter((a) => a.id !== id))
+    } catch (err) {
+      toast.error(isApiError(err) ? err.message : t("compose.attachmentRemoveFailed"))
     }
   }
 
@@ -291,7 +438,7 @@ export function ComposeView() {
     if (!parsed.success) {
       for (const issue of parsed.error.issues) {
         const field = issue.path[0]
-        if (field === "to" || field === "text" || field === "fromAliasId") {
+        if (field === "to" || field === "html" || field === "fromAliasId") {
           form.setError(field, { message: issue.message })
         }
       }
@@ -299,7 +446,9 @@ export function ComposeView() {
     }
 
     const to = parseRecipients(parsed.data.to)
+    const text = htmlToText(parsed.data.html)
 
+    skipAutoSaveRef.current = true
     setSubmitting(true)
     try {
       await api("/api/messages/send", {
@@ -308,14 +457,17 @@ export function ComposeView() {
           fromAliasId: parsed.data.fromAliasId,
           to,
           subject: parsed.data.subject,
-          text: parsed.data.text,
+          text,
+          html: parsed.data.html,
           replyToMessageId,
-          draftId,
+          draftId: draftIdRef.current,
+          attachmentIds: attachments.map((a) => a.id),
         }),
       })
       toast.success(t("compose.sent"))
       navigate("/sent")
     } catch (err) {
+      skipAutoSaveRef.current = false
       if (isApiError(err)) {
         const code = err.body.error as SendErrorCode | undefined
         toast.error(
@@ -358,9 +510,33 @@ export function ComposeView() {
     )
   }
 
+  const autoSaveLabel =
+    autoSaveStatus === "saving"
+      ? t("compose.autoSaving")
+      : autoSaveStatus === "saved"
+        ? t("compose.autoSaved")
+        : autoSaveStatus === "error"
+          ? t("compose.autoSaveFailed")
+          : null
+
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
-      <PageHeader title={title} />
+      <PageHeader
+        title={title}
+        actions={
+          autoSaveLabel ? (
+            <span
+              className={
+                autoSaveStatus === "error"
+                  ? "text-xs text-destructive"
+                  : "text-xs text-muted-foreground"
+              }
+            >
+              {autoSaveLabel}
+            </span>
+          ) : null
+        }
+      />
 
       <ScrollArea className="min-h-0 flex-1">
         <form
@@ -419,15 +595,80 @@ export function ComposeView() {
               <Input id="compose-subject" {...form.register("subject")} />
             </Field>
 
-            <Field data-invalid={!!form.formState.errors.text || undefined}>
-              <FieldLabel htmlFor="compose-text">{t("compose.body")}</FieldLabel>
-              <Textarea
-                id="compose-text"
-                className="min-h-48"
-                aria-invalid={!!form.formState.errors.text}
-                {...form.register("text")}
+            <Field data-invalid={!!form.formState.errors.html || undefined}>
+              <FieldLabel htmlFor="compose-editor">{t("compose.body")}</FieldLabel>
+              <Controller
+                control={form.control}
+                name="html"
+                render={({ field }) => (
+                  <RichTextEditor
+                    key={editorKey}
+                    id="compose-editor"
+                    value={field.value}
+                    onChange={field.onChange}
+                    invalid={!!form.formState.errors.html}
+                  />
+                )}
               />
-              <FieldError errors={[form.formState.errors.text]} />
+              <FieldError errors={[form.formState.errors.html]} />
+            </Field>
+
+            <Field>
+              <FieldLabel>{t("compose.attachments")}</FieldLabel>
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="sr-only"
+                multiple
+                onChange={(e) => void onPickFiles(e.target.files)}
+              />
+              <div className="flex flex-col gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-fit"
+                  disabled={
+                    uploading ||
+                    submitting ||
+                    savingDraft ||
+                    deletingDraft ||
+                    attachments.length >= MAX_ATTACHMENTS
+                  }
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <PaperclipIcon data-icon="inline-start" />
+                  {uploading ? t("compose.uploading") : t("compose.addAttachment")}
+                </Button>
+                <FieldDescription>{t("compose.attachmentHint")}</FieldDescription>
+                {attachments.length > 0 ? (
+                  <ul className="flex flex-col gap-1">
+                    {attachments.map((att) => (
+                      <li
+                        key={att.id}
+                        className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm"
+                      >
+                        <span className="min-w-0 truncate">
+                          {att.filename}
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            ({Math.max(1, Math.round(att.sizeBytes / 1024))} KB)
+                          </span>
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={t("compose.removeAttachment")}
+                          disabled={submitting || savingDraft || deletingDraft}
+                          onClick={() => void removeAttachment(att.id)}
+                        >
+                          <TrashIcon />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
             </Field>
           </FieldGroup>
 

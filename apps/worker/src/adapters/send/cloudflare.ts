@@ -14,6 +14,9 @@ export function createCloudflareSendAdapter(env: {
 }): SendAdapter {
   return {
     async send(input: SendInput): Promise<SendResult> {
+      if (input.attachments && input.attachments.length > 0) {
+        return { error: 'attachments_unsupported' }
+      }
       if (!env.EMAIL) {
         return { error: 'not_configured' }
       }

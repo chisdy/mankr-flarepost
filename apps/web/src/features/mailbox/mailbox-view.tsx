@@ -1,11 +1,17 @@
-import { StarIcon, TrashIcon } from "@phosphor-icons/react"
+import { MagnifyingGlassIcon, StarIcon, TrashIcon } from "@phosphor-icons/react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Link, useLocation, useParams } from "react-router"
+import {
+  Link,
+  useLocation,
+  useParams,
+  useSearchParams,
+} from "react-router"
 import { toast } from "sonner"
 
 import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   OnboardingBanner,
@@ -18,8 +24,12 @@ import { cn } from "@/lib/utils"
 
 function modeFromLocation(
   pathname: string,
-  tagIdParam: string | undefined
+  tagIdParam: string | undefined,
+  searchQuery: string
 ): MailboxViewMode {
+  if (pathname === "/search" || pathname.startsWith("/search/")) {
+    return { kind: "search", query: searchQuery }
+  }
   if (pathname === "/starred" || pathname.startsWith("/starred/")) {
     return { kind: "starred" }
   }
@@ -38,6 +48,7 @@ function buildListQuery(mode: MailboxViewMode, cursor?: string | null): string {
   const qs = new URLSearchParams()
   if (mode.kind === "starred") qs.set("starred", "1")
   else if (mode.kind === "tag") qs.set("tagId", mode.tagId)
+  else if (mode.kind === "search") qs.set("q", mode.query)
   else qs.set("folder", mode.folder)
   if (cursor) qs.set("cursor", cursor)
   return qs.toString()
@@ -47,10 +58,18 @@ export function MailboxView() {
   const { t, i18n } = useTranslation()
   const { pathname } = useLocation()
   const { tagId: tagIdParam } = useParams<{ tagId?: string }>()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const urlQuery = searchParams.get("q") ?? ""
+  const [searchInput, setSearchInput] = useState(urlQuery)
+
   const mode = useMemo(
-    () => modeFromLocation(pathname, tagIdParam),
-    [pathname, tagIdParam]
+    () => modeFromLocation(pathname, tagIdParam, urlQuery.trim()),
+    [pathname, tagIdParam, urlQuery]
   )
+
+  useEffect(() => {
+    if (mode.kind === "search") setSearchInput(mode.query)
+  }, [mode])
 
   const [tagName, setTagName] = useState<string | null>(null)
 
@@ -75,6 +94,16 @@ export function MailboxView() {
   }, [mode])
 
   const meta = useMemo(() => {
+    if (mode.kind === "search") {
+      return {
+        title: mode.query
+          ? t("mailbox.searchTitle", { query: mode.query })
+          : t("nav.search"),
+        empty: mode.query
+          ? t("mailbox.searchEmpty")
+          : t("mailbox.searchHint"),
+      }
+    }
     if (mode.kind === "starred") {
       return { title: t("nav.starred"), empty: t("mailbox.starredEmpty") }
     }
@@ -109,15 +138,27 @@ export function MailboxView() {
 
   const load = useCallback(
     async (cursor?: string | null) => {
+      if (mode.kind === "search" && !mode.query) {
+        setItems([])
+        setNextCursor(null)
+        setLoading(false)
+        setLoadingMore(false)
+        return
+      }
+
       const append = Boolean(cursor)
       if (append) setLoadingMore(true)
       else setLoading(true)
       try {
         const qs = buildListQuery(mode, cursor)
+        const path =
+          mode.kind === "search"
+            ? `/api/messages/search?${qs}`
+            : `/api/messages?${qs}`
         const data = await api<{
           items: MessageListItem[]
           nextCursor: string | null
-        }>(`/api/messages?${qs}`)
+        }>(path)
         setItems((prev) => (append ? [...prev, ...data.items] : data.items))
         setNextCursor(data.nextCursor)
       } catch (err) {
@@ -153,6 +194,12 @@ export function MailboxView() {
       cancelled = true
     }
   }, [])
+
+  function submitSearch(e: React.FormEvent) {
+    e.preventDefault()
+    const q = searchInput.trim()
+    setSearchParams(q ? { q } : {}, { replace: true })
+  }
 
   async function emptyTrash() {
     if (!window.confirm(t("mailbox.emptyConfirm"))) return
@@ -219,6 +266,25 @@ export function MailboxView() {
         }
       />
 
+      {mode.kind === "search" ? (
+        <form
+          className="flex gap-2 border-b border-border px-4 py-3 sm:px-6"
+          onSubmit={submitSearch}
+        >
+          <Input
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder={t("mailbox.searchPlaceholder")}
+            aria-label={t("nav.search")}
+            autoFocus
+          />
+          <Button type="submit" variant="outline">
+            <MagnifyingGlassIcon data-icon="inline-start" />
+            {t("mailbox.searchAction")}
+          </Button>
+        </form>
+      ) : null}
+
       {showBanner ? <OnboardingBanner aliasCount={aliasCount} /> : null}
 
       <ScrollArea className="min-h-0 flex-1">
@@ -241,18 +307,19 @@ export function MailboxView() {
           <>
             <ul className="divide-y divide-border">
               {items.map((item) => {
+                const listFolder = folder ?? item.folder
                 const peer =
-                  folder === "sent" || folder === "draft"
+                  listFolder === "sent" || listFolder === "draft"
                     ? item.toAddrs.join(", ") || t("app.noRecipients")
                     : item.fromAddr
                 const href =
-                  folder === "draft"
+                  listFolder === "draft"
                     ? `/compose?draft=${item.id}`
                     : `/m/${item.id}`
                 return (
                   <li key={item.id}>
                     <div className="flex items-stretch gap-1 px-2 sm:px-4">
-                      {folder !== "draft" ? (
+                      {listFolder !== "draft" ? (
                         <Button
                           type="button"
                           variant="ghost"
@@ -278,14 +345,14 @@ export function MailboxView() {
                         to={href}
                         className={cn(
                           "flex min-w-0 flex-1 flex-col gap-1 py-3 transition-colors hover:bg-muted/50 sm:flex-row sm:items-baseline sm:gap-3 sm:px-2",
-                          !item.isRead && folder !== "draft" && "bg-muted/30"
+                          !item.isRead && listFolder !== "draft" && "bg-muted/30"
                         )}
                       >
                         <div className="flex min-w-0 items-baseline justify-between gap-3 sm:contents">
                           <span
                             className={cn(
                               "min-w-0 truncate text-sm sm:w-40 sm:shrink-0",
-                              !item.isRead && folder !== "draft"
+                              !item.isRead && listFolder !== "draft"
                                 ? "font-semibold"
                                 : "text-muted-foreground"
                             )}
@@ -303,13 +370,18 @@ export function MailboxView() {
                         <span
                           className={cn(
                             "min-w-0 truncate text-sm sm:flex-1",
-                            !item.isRead && folder !== "draft"
+                            !item.isRead && listFolder !== "draft"
                               ? "font-semibold"
                               : "text-foreground/90"
                           )}
                         >
                           {item.subject || t("app.noSubject")}
                         </span>
+                        {mode.kind === "search" ? (
+                          <span className="hidden text-xs text-muted-foreground sm:inline sm:w-16 sm:shrink-0">
+                            {t(`nav.${item.folder === "draft" ? "drafts" : item.folder}`)}
+                          </span>
+                        ) : null}
                       </Link>
                     </div>
                   </li>

@@ -9,9 +9,11 @@
     "start": "pnpm run dev",
     "dev": "pnpm --parallel --filter @mankr/web --filter @mankr/worker dev",
     "build": "pnpm --filter @mankr/web build && pnpm --filter @mankr/worker build",
-    "deploy": "pnpm build && wrangler d1 migrations apply DB --remote && wrangler deploy",
+    "deploy": "pnpm build && pnpm run db:ensure && pnpm run r2:ensure && wrangler d1 migrations apply DB --remote --config wrangler.deploy.toml && wrangler deploy --config wrangler.deploy.toml",
+    "db:ensure": "node scripts/ensure-d1.mjs",
+    "r2:ensure": "node scripts/ensure-r2.mjs",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
-    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "db:migrate:remote": "pnpm run db:ensure && wrangler d1 migrations apply DB --remote --config wrangler.deploy.toml",
     "db:seed:local": "wrangler d1 execute DB --local --file=./scripts/seed-local.sql",
     "init:admin": "echo 'Prefer POST /api/setup when users is empty. Or: ADMIN_USERNAME=... ADMIN_PASSWORD=... pnpm --filter @mankr/worker exec tsx scripts/init-admin.ts' && wrangler d1 execute DB --local --command \"SELECT COUNT(*) AS users FROM users\"",
     "test": "pnpm --filter @mankr/worker test"

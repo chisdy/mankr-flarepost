@@ -5,6 +5,7 @@ import {
   GearIcon,
   KeyIcon,
   ListIcon,
+  MagnifyingGlassIcon,
   NoteBlankIcon,
   PaperPlaneTiltIcon,
   PlusIcon,
@@ -46,6 +47,7 @@ import { cn } from "@/lib/utils"
 const folders = [
   { to: "/inbox", labelKey: "nav.inbox", icon: EnvelopeIcon },
   { to: "/starred", labelKey: "nav.starred", icon: StarIcon },
+  { to: "/search", labelKey: "nav.search", icon: MagnifyingGlassIcon },
   { to: "/draft", labelKey: "nav.drafts", icon: NoteBlankIcon },
   { to: "/sent", labelKey: "nav.sent", icon: PaperPlaneTiltIcon },
   { to: "/trash", labelKey: "nav.trash", icon: TrashIcon },
