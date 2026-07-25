@@ -1,23 +1,56 @@
-import { useEffect, useState } from "react"
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react"
 import { Navigate, Outlet, useLocation } from "react-router"
 
-import { api } from "@/lib/api"
-
-export type AuthUser = {
-  username: string
-  displayName: string | null
-}
+import { api, isApiError } from "@/lib/api"
+import type { AuthUser } from "@/lib/types"
 
 type AuthState =
   | { status: "loading" }
   | { status: "anonymous" }
   | { status: "authenticated"; user: AuthUser }
 
+type AuthContextValue = {
+  user: AuthUser | null
+  setUser: (user: AuthUser) => void
+  clearUser: () => void
+  refresh: () => Promise<void>
+}
+
+const AuthContext = createContext<AuthContextValue | null>(null)
+
 const publicPaths = new Set(["/login", "/setup"])
+
+export function useAuth(): AuthContextValue {
+  const ctx = useContext(AuthContext)
+  if (!ctx) {
+    throw new Error("useAuth must be used within AuthGate")
+  }
+  return ctx
+}
 
 export function AuthGate() {
   const location = useLocation()
   const [auth, setAuth] = useState<AuthState>({ status: "loading" })
+
+  const refresh = useCallback(async () => {
+    try {
+      const user = await api<AuthUser>("/api/auth/me")
+      setAuth({ status: "authenticated", user })
+    } catch (err) {
+      if (isApiError(err) && err.status === 401) {
+        setAuth({ status: "anonymous" })
+        return
+      }
+      setAuth({ status: "anonymous" })
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -33,7 +66,17 @@ export function AuthGate() {
     return () => {
       cancelled = true
     }
-  }, [location.pathname])
+  }, [])
+
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      user: auth.status === "authenticated" ? auth.user : null,
+      setUser: (user) => setAuth({ status: "authenticated", user }),
+      clearUser: () => setAuth({ status: "anonymous" }),
+      refresh,
+    }),
+    [auth, refresh]
+  )
 
   if (auth.status === "loading") {
     return (
@@ -53,5 +96,9 @@ export function AuthGate() {
     return <Navigate to="/inbox" replace />
   }
 
-  return <Outlet context={auth.status === "authenticated" ? auth.user : null} />
+  return (
+    <AuthContext.Provider value={value}>
+      <Outlet />
+    </AuthContext.Provider>
+  )
 }

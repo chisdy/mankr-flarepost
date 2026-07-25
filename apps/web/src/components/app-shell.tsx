@@ -5,11 +5,27 @@ import {
   PlusIcon,
   TrashIcon,
   AtIcon,
+  UserCircleIcon,
+  SignOutIcon,
+  KeyIcon,
 } from "@phosphor-icons/react"
-import { Link, NavLink, Outlet } from "react-router"
+import { useState } from "react"
+import { Link, NavLink, Outlet, useNavigate } from "react-router"
+import { toast } from "sonner"
 
+import { useAuth } from "@/components/auth-gate"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Separator } from "@/components/ui/separator"
+import { ChangePasswordDialog } from "@/features/auth/change-password-dialog"
+import { api, isApiError } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
 const folders = [
@@ -19,6 +35,26 @@ const folders = [
 ] as const
 
 export function AppShell() {
+  const { user, clearUser } = useAuth()
+  const navigate = useNavigate()
+  const [passwordOpen, setPasswordOpen] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
+
+  async function logout() {
+    setLoggingOut(true)
+    try {
+      await api("/api/auth/logout", { method: "POST" })
+    } catch (err) {
+      toast.error(isApiError(err) ? err.message : "Logout failed")
+    } finally {
+      clearUser()
+      setLoggingOut(false)
+      navigate("/login", { replace: true })
+    }
+  }
+
+  const label = user?.displayName || user?.username || "Account"
+
   return (
     <div className="flex min-h-svh bg-background text-foreground">
       <aside className="flex w-56 shrink-0 flex-col gap-4 border-r border-border bg-sidebar p-4 text-sidebar-foreground">
@@ -39,7 +75,7 @@ export function AppShell() {
         </Button>
 
         <nav className="flex flex-col gap-1">
-          {folders.map(({ to, label, icon: Icon }) => (
+          {folders.map(({ to, label: folderLabel, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
@@ -53,7 +89,7 @@ export function AppShell() {
               }
             >
               <Icon />
-              {label}
+              {folderLabel}
             </NavLink>
           ))}
         </nav>
@@ -74,11 +110,47 @@ export function AppShell() {
           <AtIcon />
           Aliases
         </NavLink>
+
+        <div className="mt-auto">
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button variant="ghost" className="w-full justify-start" />
+              }
+            >
+              <UserCircleIcon data-icon="inline-start" />
+              <span className="truncate">{label}</span>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-52">
+              <DropdownMenuLabel className="truncate">
+                {user?.username}
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setPasswordOpen(true)}>
+                <KeyIcon />
+                Change password
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                variant="destructive"
+                disabled={loggingOut}
+                onClick={() => void logout()}
+              >
+                <SignOutIcon />
+                {loggingOut ? "Signing out…" : "Sign out"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col">
         <Outlet />
       </main>
+
+      <ChangePasswordDialog
+        open={passwordOpen}
+        onOpenChange={setPasswordOpen}
+      />
     </div>
   )
 }

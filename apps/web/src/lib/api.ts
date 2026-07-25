@@ -1,3 +1,21 @@
+import type { ApiErrorBody } from "@/lib/types"
+
+export class ApiError extends Error {
+  status: number
+  body: ApiErrorBody
+
+  constructor(message: string, status: number, body: ApiErrorBody) {
+    super(message)
+    this.name = "ApiError"
+    this.status = status
+    this.body = body
+  }
+}
+
+export function isApiError(err: unknown): err is ApiError {
+  return err instanceof ApiError
+}
+
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     ...init,
@@ -8,12 +26,9 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     credentials: "include",
   })
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
-    throw Object.assign(new Error(body.message || res.statusText), {
-      status: res.status,
-      body,
-    })
+    const body = (await res.json().catch(() => ({}))) as ApiErrorBody
+    throw new ApiError(body.message || res.statusText || "Request failed", res.status, body)
   }
   if (res.status === 204) return undefined as T
-  return res.json()
+  return res.json() as Promise<T>
 }

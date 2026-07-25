@@ -1,21 +1,18 @@
-# React + TypeScript + Vite + shadcn/ui
+# @mankr/web
 
-This is a template for a new Vite project with React, TypeScript, and shadcn/ui.
+Vite + React SPA for Mankr Mail (shadcn preset `b39gyV42i`).
 
-## Adding components
+## Free-tier boundaries (P0)
 
-To add components to your app, run the following command:
+- **Aliases:** max **5** per installation
+- **Attachments:** not supported (inbound attachment banners only)
+- **Users:** single admin account
+- **Outbound:** Cloudflare arbitrary send needs Paid; Total Free path uses `SEND_CHANNEL=resend`
+
+## Dev
 
 ```bash
-npx shadcn@latest add button
+pnpm --filter @mankr/web dev
 ```
 
-This will place the ui components in the `src/components` directory.
-
-## Using components
-
-To use the components in your app, import them as follows:
-
-```tsx
-import { Button } from "@/components/ui/button"
-```
+Proxies `/api` to `http://127.0.0.1:8787`.
