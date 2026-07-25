@@ -25,7 +25,7 @@
 ## File Map
 
 ```text
-mankr-maill/
+mankr-flarepost/
   package.json
   pnpm-workspace.yaml
   wrangler.toml
@@ -95,15 +95,15 @@ mankr-maill/
 `package.json`:
 ```json
 {
-  "name": "mankr-maill",
+  "name": "mankr-flarepost",
   "private": true,
   "packageManager": "pnpm@11.17.0",
   "scripts": {
     "dev": "pnpm --parallel --filter @mankr/web --filter @mankr/worker dev",
     "build": "pnpm --filter @mankr/web build && pnpm --filter @mankr/worker build",
     "deploy": "pnpm build && wrangler deploy",
-    "db:migrate:local": "wrangler d1 migrations apply mankr-mail --local",
-    "db:migrate:remote": "wrangler d1 migrations apply mankr-mail --remote",
+    "db:migrate:local": "wrangler d1 migrations apply mankr-flarepost --local",
+    "db:migrate:remote": "wrangler d1 migrations apply mankr-flarepost --remote",
     "test": "pnpm --filter @mankr/worker test"
   },
   "devDependencies": {
@@ -177,14 +177,14 @@ CREATE INDEX idx_messages_alias_folder_created ON messages(alias_id, folder, cre
 - [x] **Step 3: Write root `wrangler.toml`**
 
 ```toml
-name = "mankr-mail"
+name = "mankr-flarepost"
 main = "apps/worker/src/index.ts"
 compatibility_date = "2026-07-25"
 compatibility_flags = ["nodejs_compat"]
 
 [[d1_databases]]
 binding = "DB"
-database_name = "mankr-mail"
+database_name = "mankr-flarepost"
 database_id = "local-placeholder-replace-on-deploy"
 migrations_dir = "apps/worker/migrations"
 
@@ -249,7 +249,7 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
     if (url.pathname.startsWith('/api/')) {
-      return Response.json({ ok: true, service: 'mankr-mail' })
+      return Response.json({ ok: true, service: 'mankr-flarepost' })
     }
     return env.ASSETS.fetch(request)
   },
@@ -378,7 +378,7 @@ Script args via env: `ADMIN_USERNAME`, `ADMIN_PASSWORD`. Insert single `users` r
 
 Also add root script:
 ```json
-"init:admin": "wrangler d1 execute mankr-mail --local --command \"...\""
+"init:admin": "wrangler d1 execute mankr-flarepost --local --command \"...\""
 ```
 Prefer a small worker-side approach: `POST /api/setup` **only when users table empty**, body `{ username, password, displayName? }` — simpler for one-click. Guard: if any user exists → 403. Document this as the init path.
 

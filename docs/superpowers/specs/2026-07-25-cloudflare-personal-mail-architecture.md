@@ -187,7 +187,7 @@ interface SendAdapter {
 pnpm workspace（**要求使用最新稳定版 pnpm**，经 `packageManager` 字段钉扎），单仓两包，一次部署：
 
 ```text
-mankr-maill/
+mankr-flarepost/
   apps/
     web/          # React 19 + Vite 8 + shadcn/ui + Phosphor
     worker/       # Hono API + email handler + adapters + D1
