@@ -4,7 +4,7 @@ import { findAliasById } from '../aliases/service'
 import type { Env } from '../env'
 import type { AppVariables } from '../http/middleware'
 import { getMessage, insertOutboundMessage } from '../messages/service'
-import { checkRateLimit } from './rate-limit'
+import { checkRateLimit, incrementRateLimit } from './rate-limit'
 
 type SendEnv = { Bindings: Env; Variables: AppVariables }
 type SendApp = Hono<SendEnv>
@@ -101,6 +101,9 @@ export function registerSendRoutes(app: SendApp): void {
     if (isSendError(result)) {
       return sendError(c, result.error)
     }
+
+    // Only consume soft quota after provider accepts the message
+    incrementRateLimit(alias.address)
 
     // Only persist to sent folder after provider accepts the message
     const stored = await insertOutboundMessage(c.env.DB, {

@@ -41,15 +41,6 @@ export const FOLDERS: readonly Folder[] = ['inbox', 'sent', 'trash'] as const
 export const DEFAULT_LIST_LIMIT = 50
 export const MAX_LIST_LIMIT = 100
 
-export class InvalidFolderError extends Error {
-  readonly code = 'invalid_folder' as const
-
-  constructor(message = 'Invalid folder') {
-    super(message)
-    this.name = 'InvalidFolderError'
-  }
-}
-
 export class InvalidCursorError extends Error {
   readonly code = 'invalid_cursor' as const
 

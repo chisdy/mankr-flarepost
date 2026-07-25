@@ -6,7 +6,7 @@ import { getSendAdapter } from '../src/adapters/send'
 import type { Env } from '../src/env'
 import { createApp } from '../src/http/app'
 import { createSessionCookie, SESSION_COOKIE_NAME } from '../src/auth/session'
-import { checkRateLimit, resetRateLimits } from '../src/send/rate-limit'
+import { checkRateLimit, incrementRateLimit, resetRateLimits } from '../src/send/rate-limit'
 
 const baseInput = {
   from: 'me@example.com',
@@ -154,9 +154,21 @@ describe('rate limit', () => {
   it('allows up to 30 sends per hour then rate_limited', () => {
     for (let i = 0; i < 30; i++) {
       expect(checkRateLimit('me@example.com')).toEqual({ ok: true })
+      incrementRateLimit('me@example.com')
     }
     expect(checkRateLimit('me@example.com')).toEqual({ ok: false, error: 'rate_limited' })
     expect(checkRateLimit('other@example.com')).toEqual({ ok: true })
+  })
+
+  it('check does not consume quota until increment', () => {
+    for (let i = 0; i < 100; i++) {
+      expect(checkRateLimit('me@example.com')).toEqual({ ok: true })
+    }
+    for (let i = 0; i < 30; i++) {
+      expect(checkRateLimit('me@example.com')).toEqual({ ok: true })
+      incrementRateLimit('me@example.com')
+    }
+    expect(checkRateLimit('me@example.com')).toEqual({ ok: false, error: 'rate_limited' })
   })
 })
 
@@ -301,6 +313,12 @@ describe('POST /api/messages/send', () => {
       message: expect.any(String),
     })
     expect(insertRun).not.toHaveBeenCalled()
+    // Failures must not consume soft send quota
+    for (let i = 0; i < 30; i++) {
+      expect(checkRateLimit('me@example.com')).toEqual({ ok: true })
+      incrementRateLimit('me@example.com')
+    }
+    expect(checkRateLimit('me@example.com')).toEqual({ ok: false, error: 'rate_limited' })
   })
 
   it('on success inserts folder=sent direction=outbound with provider id', async () => {
