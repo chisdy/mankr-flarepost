@@ -101,7 +101,8 @@ export function MessageView() {
         ? "/trash"
         : "/inbox"
 
-  const html = message.htmlBody ? sanitize(message.htmlBody) : null
+  const sanitized = message.htmlBody ? sanitize(message.htmlBody).trim() : ""
+  const html = sanitized || null
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

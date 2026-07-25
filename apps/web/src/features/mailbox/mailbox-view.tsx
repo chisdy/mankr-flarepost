@@ -40,25 +40,38 @@ export function MailboxView() {
   const meta = folderMeta[folder]
 
   const [items, setItems] = useState<MessageListItem[]>([])
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [emptying, setEmptying] = useState(false)
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const load = useCallback(async (cursor?: string | null) => {
+    const append = Boolean(cursor)
+    if (append) setLoadingMore(true)
+    else setLoading(true)
     try {
+      const qs = new URLSearchParams({ folder })
+      if (cursor) qs.set("cursor", cursor)
       const data = await api<{ items: MessageListItem[]; nextCursor: string | null }>(
-        `/api/messages?folder=${folder}`
+        `/api/messages?${qs}`
       )
-      setItems(data.items)
+      setItems((prev) => (append ? [...prev, ...data.items] : data.items))
+      setNextCursor(data.nextCursor)
     } catch (err) {
       toast.error(isApiError(err) ? err.message : "Failed to load messages")
-      setItems([])
+      if (!append) {
+        setItems([])
+        setNextCursor(null)
+      }
     } finally {
-      setLoading(false)
+      if (append) setLoadingMore(false)
+      else setLoading(false)
     }
   }, [folder])
 
   useEffect(() => {
+    setItems([])
+    setNextCursor(null)
     void load()
   }, [load])
 
@@ -100,48 +113,63 @@ export function MailboxView() {
         ) : items.length === 0 ? (
           <p className="px-6 py-8 text-sm text-muted-foreground">{meta.empty}</p>
         ) : (
-          <ul className="divide-y divide-border">
-            {items.map((item) => {
-              const peer =
-                folder === "sent"
-                  ? item.toAddrs.join(", ") || "(no recipients)"
-                  : item.fromAddr
-              return (
-                <li key={item.id}>
-                  <Link
-                    to={`/m/${item.id}`}
-                    className={cn(
-                      "flex items-baseline gap-3 px-6 py-3 transition-colors hover:bg-muted/50",
-                      !item.isRead && "bg-muted/30"
-                    )}
-                  >
-                    <span
+          <>
+            <ul className="divide-y divide-border">
+              {items.map((item) => {
+                const peer =
+                  folder === "sent"
+                    ? item.toAddrs.join(", ") || "(no recipients)"
+                    : item.fromAddr
+                return (
+                  <li key={item.id}>
+                    <Link
+                      to={`/m/${item.id}`}
                       className={cn(
-                        "w-40 shrink-0 truncate text-sm",
-                        !item.isRead ? "font-semibold" : "text-muted-foreground"
+                        "flex items-baseline gap-3 px-6 py-3 transition-colors hover:bg-muted/50",
+                        !item.isRead && "bg-muted/30"
                       )}
                     >
-                      {peer}
-                    </span>
-                    <span
-                      className={cn(
-                        "min-w-0 flex-1 truncate text-sm",
-                        !item.isRead ? "font-semibold" : "text-foreground/90"
-                      )}
-                    >
-                      {item.subject || "(no subject)"}
-                    </span>
-                    <time
-                      className="shrink-0 text-xs text-muted-foreground tabular-nums"
-                      dateTime={new Date(item.createdAt).toISOString()}
-                    >
-                      {formatMessageTime(item.createdAt)}
-                    </time>
-                  </Link>
-                </li>
-              )
-            })}
-          </ul>
+                      <span
+                        className={cn(
+                          "w-40 shrink-0 truncate text-sm",
+                          !item.isRead ? "font-semibold" : "text-muted-foreground"
+                        )}
+                      >
+                        {peer}
+                      </span>
+                      <span
+                        className={cn(
+                          "min-w-0 flex-1 truncate text-sm",
+                          !item.isRead ? "font-semibold" : "text-foreground/90"
+                        )}
+                      >
+                        {item.subject || "(no subject)"}
+                      </span>
+                      <time
+                        className="shrink-0 text-xs text-muted-foreground tabular-nums"
+                        dateTime={new Date(item.createdAt).toISOString()}
+                      >
+                        {formatMessageTime(item.createdAt)}
+                      </time>
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+            {nextCursor ? (
+              <div className="flex justify-center px-6 py-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={loadingMore}
+                  onClick={() => void load(nextCursor)}
+                >
+                  {loadingMore ? "Loading…" : "Load more"}
+                </Button>
+              </div>
+            ) : null}
+          </>
         )}
       </ScrollArea>
     </div>
