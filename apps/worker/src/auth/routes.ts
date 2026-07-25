@@ -113,13 +113,17 @@ export function registerAuthRoutes(app: AuthApp): void {
 
     const id = crypto.randomUUID()
     const passwordHash = await hashPassword(password)
-    await insertUser(c.env.DB, {
+    const inserted = await insertUser(c.env.DB, {
       id,
       username,
       passwordHash,
       displayName,
       createdAt: Date.now(),
     })
+    // Atomic guard: concurrent setups with different usernames lose the race → 403
+    if (!inserted) {
+      return jsonError(c, 403, 'already_initialized')
+    }
 
     const value = await createSessionCookie(id, c.env.COOKIES_SECRET)
     c.header('Set-Cookie', buildSessionSetCookie(value))

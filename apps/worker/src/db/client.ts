@@ -32,6 +32,7 @@ export async function findUserById(db: D1Database, id: string): Promise<UserRow 
     .first<UserRow>()
 }
 
+/** Bootstrap insert: succeeds only when users is empty (race-safe single-user constraint). */
 export async function insertUser(
   db: D1Database,
   user: {
@@ -41,13 +42,16 @@ export async function insertUser(
     displayName: string | null
     createdAt: number
   },
-): Promise<void> {
-  await db
+): Promise<boolean> {
+  const result = await db
     .prepare(
-      'INSERT INTO users (id, username, password_hash, display_name, created_at) VALUES (?, ?, ?, ?, ?)',
+      `INSERT INTO users (id, username, password_hash, display_name, created_at)
+       SELECT ?, ?, ?, ?, ?
+       WHERE (SELECT COUNT(*) FROM users) = 0`,
     )
     .bind(user.id, user.username, user.passwordHash, user.displayName, user.createdAt)
     .run()
+  return (result.meta.changes ?? 0) > 0
 }
 
 export async function updateUserPassword(
