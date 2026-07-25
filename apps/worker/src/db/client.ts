@@ -64,3 +64,14 @@ export async function updateUserPassword(
     .bind(passwordHash, userId)
     .run()
 }
+
+export async function updateUserDisplayName(
+  db: D1Database,
+  userId: string,
+  displayName: string | null,
+): Promise<void> {
+  await db
+    .prepare('UPDATE users SET display_name = ? WHERE id = ?')
+    .bind(displayName, userId)
+    .run()
+}

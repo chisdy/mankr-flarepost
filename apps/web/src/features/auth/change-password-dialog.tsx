@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
+import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { z } from "zod"
 
@@ -22,18 +23,11 @@ import {
 import { Input } from "@/components/ui/input"
 import { api, isApiError } from "@/lib/api"
 
-const passwordSchema = z
-  .object({
-    currentPassword: z.string().min(1, "Current password is required"),
-    newPassword: z.string().min(8, "New password must be at least 8 characters"),
-    confirmPassword: z.string().min(1, "Confirm your new password"),
-  })
-  .refine((data) => data.newPassword === data.confirmPassword, {
-    message: "Passwords do not match",
-    path: ["confirmPassword"],
-  })
-
-type PasswordValues = z.infer<typeof passwordSchema>
+type PasswordValues = {
+  currentPassword: string
+  newPassword: string
+  confirmPassword: string
+}
 
 type ChangePasswordDialogProps = {
   open: boolean
@@ -44,7 +38,24 @@ export function ChangePasswordDialog({
   open,
   onOpenChange,
 }: ChangePasswordDialogProps) {
+  const { t } = useTranslation()
   const [submitting, setSubmitting] = useState(false)
+
+  const passwordSchema = useMemo(
+    () =>
+      z
+        .object({
+          currentPassword: z.string().min(1, t("auth.currentPasswordRequired")),
+          newPassword: z.string().min(8, t("auth.newPasswordMin")),
+          confirmPassword: z.string().min(1, t("auth.confirmRequired")),
+        })
+        .refine((data) => data.newPassword === data.confirmPassword, {
+          message: t("auth.passwordsMismatch"),
+          path: ["confirmPassword"],
+        }),
+    [t]
+  )
+
   const form = useForm<PasswordValues>({
     resolver: zodResolver(passwordSchema),
     defaultValues: {
@@ -64,13 +75,13 @@ export function ChangePasswordDialog({
           newPassword: values.newPassword,
         }),
       })
-      toast.success("Password updated")
+      toast.success(t("auth.passwordUpdated"))
       form.reset()
       onOpenChange(false)
     } catch (err) {
       const message = isApiError(err)
-        ? err.message || "Could not update password"
-        : "Could not update password"
+        ? err.message || t("auth.passwordUpdateFailed")
+        : t("auth.passwordUpdateFailed")
       toast.error(message)
     } finally {
       setSubmitting(false)
@@ -87,9 +98,9 @@ export function ChangePasswordDialog({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Change password</DialogTitle>
+          <DialogTitle>{t("auth.changePasswordTitle")}</DialogTitle>
           <DialogDescription>
-            Choose a new password with at least 8 characters.
+            {t("auth.changePasswordDescription")}
           </DialogDescription>
         </DialogHeader>
         <form id="change-password-form" onSubmit={form.handleSubmit(onSubmit)}>
@@ -97,7 +108,7 @@ export function ChangePasswordDialog({
             <Field
               data-invalid={!!form.formState.errors.currentPassword || undefined}
             >
-              <FieldLabel htmlFor="current-password">Current password</FieldLabel>
+              <FieldLabel htmlFor="current-password">{t("auth.currentPassword")}</FieldLabel>
               <Input
                 id="current-password"
                 type="password"
@@ -108,7 +119,7 @@ export function ChangePasswordDialog({
               <FieldError errors={[form.formState.errors.currentPassword]} />
             </Field>
             <Field data-invalid={!!form.formState.errors.newPassword || undefined}>
-              <FieldLabel htmlFor="new-password">New password</FieldLabel>
+              <FieldLabel htmlFor="new-password">{t("auth.newPassword")}</FieldLabel>
               <Input
                 id="new-password"
                 type="password"
@@ -121,7 +132,7 @@ export function ChangePasswordDialog({
             <Field
               data-invalid={!!form.formState.errors.confirmPassword || undefined}
             >
-              <FieldLabel htmlFor="confirm-password">Confirm password</FieldLabel>
+              <FieldLabel htmlFor="confirm-password">{t("auth.confirmPassword")}</FieldLabel>
               <Input
                 id="confirm-password"
                 type="password"
@@ -139,10 +150,10 @@ export function ChangePasswordDialog({
             variant="outline"
             onClick={() => onOpenChange(false)}
           >
-            Cancel
+            {t("app.cancel")}
           </Button>
           <Button type="submit" form="change-password-form" disabled={submitting}>
-            {submitting ? "Saving…" : "Update password"}
+            {submitting ? t("auth.saving") : t("auth.updatePassword")}
           </Button>
         </DialogFooter>
       </DialogContent>

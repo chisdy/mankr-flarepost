@@ -1,11 +1,13 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { PaperPlaneTiltIcon } from "@phosphor-icons/react"
-import { useEffect, useState } from "react"
+import { FloppyDiskIcon, PaperPlaneTiltIcon, TrashIcon } from "@phosphor-icons/react"
+import { useEffect, useMemo, useState } from "react"
 import { Controller, useForm } from "react-hook-form"
+import { useTranslation } from "react-i18next"
 import { useNavigate, useSearchParams } from "react-router"
 import { toast } from "sonner"
 import { z } from "zod"
 
+import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
 import {
   Field,
@@ -15,57 +17,92 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { api, isApiError } from "@/lib/api"
-import { quoteReplyBody, replySubject } from "@/lib/format"
+import {
+  forwardSubject,
+  quoteForwardBody,
+  quoteReplyBody,
+  replySubject,
+} from "@/lib/format"
 import type { Alias, MessageDetail, SendErrorCode } from "@/lib/types"
-import { cn } from "@/lib/utils"
 
-const composeSchema = z.object({
-  fromAliasId: z.string().min(1, "Select a from alias"),
-  to: z
-    .string()
-    .trim()
-    .min(1, "At least one recipient is required")
-    .refine(
-      (value) =>
-        value
-          .split(/[,;\s]+/)
-          .map((s) => s.trim())
-          .filter(Boolean)
-          .every((addr) => addr.includes("@")),
-      "Enter valid email addresses"
-    ),
-  subject: z.string(),
-  text: z.string().min(1, "Message body is required"),
-})
-
-type ComposeValues = z.infer<typeof composeSchema>
-
-const SEND_TOAST: Record<SendErrorCode, string> = {
-  not_configured:
-    "Send channel not configured. Use SEND_CHANNEL=resend for Total Free outbound.",
-  rate_limited: "Send rate limit exceeded (30/hour).",
-  invalid_address: "Invalid sender or recipient address.",
-  provider_error: "Email provider failed to send.",
+type ComposeValues = {
+  fromAliasId: string
+  to: string
+  subject: string
+  text: string
 }
 
-const selectClassName = cn(
-  "h-8 w-full min-w-0 rounded-2xl border border-transparent bg-input/50 px-2.5 py-1 text-sm outline-none",
-  "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30",
-  "disabled:cursor-not-allowed disabled:opacity-50",
-  "aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20"
-)
-
 export function ComposeView() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const replyId = params.get("reply")
+  const forwardId = params.get("forward")
+  const draftIdParam = params.get("draft")
 
   const [aliases, setAliases] = useState<Alias[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [savingDraft, setSavingDraft] = useState(false)
+  const [deletingDraft, setDeletingDraft] = useState(false)
   const [replyToMessageId, setReplyToMessageId] = useState<string | undefined>()
+  const [draftId, setDraftId] = useState<string | undefined>(draftIdParam ?? undefined)
+
+  const composeSchema = useMemo(
+    () =>
+      z.object({
+        fromAliasId: z.string().min(1, t("compose.selectFrom")),
+        to: z
+          .string()
+          .trim()
+          .refine(
+            (value) => {
+              if (!value) return true
+              return value
+                .split(/[,;\s]+/)
+                .map((s) => s.trim())
+                .filter(Boolean)
+                .every((addr) => addr.includes("@"))
+            },
+            t("compose.toInvalid")
+          ),
+        subject: z.string(),
+        text: z.string(),
+      }),
+    [t]
+  )
+
+  const sendSchema = useMemo(
+    () =>
+      composeSchema.extend({
+        to: z
+          .string()
+          .trim()
+          .min(1, t("compose.toRequired"))
+          .refine(
+            (value) =>
+              value
+                .split(/[,;\s]+/)
+                .map((s) => s.trim())
+                .filter(Boolean)
+                .every((addr) => addr.includes("@")),
+            t("compose.toInvalid")
+          ),
+        text: z.string().min(1, t("compose.bodyRequired")),
+      }),
+    [composeSchema, t]
+  )
 
   const form = useForm<ComposeValues>({
     resolver: zodResolver(composeSchema),
@@ -76,6 +113,23 @@ export function ComposeView() {
       text: "",
     },
   })
+
+  const aliasItems = useMemo(
+    () =>
+      aliases.map((alias) => ({
+        label: `${alias.address}${alias.isDefault ? t("compose.defaultSuffix") : ""}`,
+        value: alias.id,
+      })),
+    [aliases, t]
+  )
+
+  const title = draftIdParam
+    ? t("compose.draftTitle")
+    : forwardId
+      ? t("compose.forwardTitle")
+      : replyId
+        ? t("compose.replyTitle")
+        : t("compose.title")
 
   useEffect(() => {
     let cancelled = false
@@ -99,7 +153,24 @@ export function ComposeView() {
           text: "",
         }
 
-        if (replyId) {
+        if (draftIdParam) {
+          const original = await api<MessageDetail>(`/api/messages/${draftIdParam}`)
+          if (cancelled) return
+          if (original.folder !== "draft") {
+            toast.error(t("compose.notADraft"))
+            navigate("/draft", { replace: true })
+            return
+          }
+          const draftAlias =
+            enabled.find((a) => a.id === original.aliasId) ?? defaultAlias
+          defaults = {
+            fromAliasId: draftAlias?.id ?? "",
+            to: original.toAddrs.join(", "),
+            subject: original.subject,
+            text: original.textBody,
+          }
+          setDraftId(original.id)
+        } else if (replyId) {
           const original = await api<MessageDetail>(`/api/messages/${replyId}`)
           if (cancelled) return
           const replyAlias =
@@ -107,19 +178,43 @@ export function ComposeView() {
           defaults = {
             fromAliasId: replyAlias?.id ?? "",
             to: original.fromAddr,
-            subject: replySubject(original.subject),
+            subject: replySubject(original.subject, t("app.noSubject")),
             text: quoteReplyBody(
               original.fromAddr,
               original.createdAt,
-              original.textBody
+              original.textBody,
+              (when, from) => t("compose.quoteHeader", { when, from })
             ),
           }
           setReplyToMessageId(original.id)
+        } else if (forwardId) {
+          const original = await api<MessageDetail>(`/api/messages/${forwardId}`)
+          if (cancelled) return
+          const forwardAlias =
+            enabled.find((a) => a.id === original.aliasId) ?? defaultAlias
+          defaults = {
+            fromAliasId: forwardAlias?.id ?? "",
+            to: "",
+            subject: forwardSubject(original.subject, t("app.noSubject")),
+            text: quoteForwardBody(
+              original.fromAddr,
+              original.toAddrs,
+              original.createdAt,
+              original.subject || t("app.noSubject"),
+              original.textBody,
+              {
+                from: t("message.from"),
+                to: t("message.to"),
+                date: t("message.date"),
+                subject: t("compose.subject"),
+              }
+            ),
+          }
         }
 
         form.reset(defaults)
       } catch (err) {
-        toast.error(isApiError(err) ? err.message : "Failed to load compose data")
+        toast.error(isApiError(err) ? err.message : t("compose.loadFailed"))
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -129,36 +224,105 @@ export function ComposeView() {
     return () => {
       cancelled = true
     }
-  }, [replyId, form])
+  }, [replyId, forwardId, draftIdParam, form, t, navigate])
 
-  async function onSubmit(values: ComposeValues) {
-    const to = values.to
+  function parseRecipients(value: string): string[] {
+    return value
       .split(/[,;\s]+/)
       .map((s) => s.trim())
       .filter(Boolean)
+  }
+
+  async function saveDraft() {
+    const values = form.getValues()
+    if (!values.fromAliasId) {
+      toast.error(t("compose.selectFrom"))
+      return
+    }
+
+    setSavingDraft(true)
+    try {
+      const payload = {
+        fromAliasId: values.fromAliasId,
+        to: parseRecipients(values.to),
+        subject: values.subject,
+        text: values.text,
+      }
+      if (draftId) {
+        await api(`/api/messages/drafts/${draftId}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        })
+        toast.success(t("compose.draftSaved"))
+      } else {
+        const result = await api<{ id: string }>("/api/messages/drafts", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        })
+        setDraftId(result.id)
+        toast.success(t("compose.draftSaved"))
+        navigate(`/compose?draft=${result.id}`, { replace: true })
+      }
+    } catch (err) {
+      toast.error(isApiError(err) ? err.message : t("compose.draftSaveFailed"))
+    } finally {
+      setSavingDraft(false)
+    }
+  }
+
+  async function deleteCurrentDraft() {
+    if (!draftId) return
+    if (!window.confirm(t("compose.deleteDraftConfirm"))) return
+
+    setDeletingDraft(true)
+    try {
+      await api(`/api/messages/drafts/${draftId}`, { method: "DELETE" })
+      toast.success(t("compose.draftDeleted"))
+      navigate("/draft")
+    } catch (err) {
+      toast.error(isApiError(err) ? err.message : t("compose.draftDeleteFailed"))
+    } finally {
+      setDeletingDraft(false)
+    }
+  }
+
+  async function onSubmit(values: ComposeValues) {
+    const parsed = sendSchema.safeParse(values)
+    if (!parsed.success) {
+      for (const issue of parsed.error.issues) {
+        const field = issue.path[0]
+        if (field === "to" || field === "text" || field === "fromAliasId") {
+          form.setError(field, { message: issue.message })
+        }
+      }
+      return
+    }
+
+    const to = parseRecipients(parsed.data.to)
 
     setSubmitting(true)
     try {
       await api("/api/messages/send", {
         method: "POST",
         body: JSON.stringify({
-          fromAliasId: values.fromAliasId,
+          fromAliasId: parsed.data.fromAliasId,
           to,
-          subject: values.subject,
-          text: values.text,
+          subject: parsed.data.subject,
+          text: parsed.data.text,
           replyToMessageId,
+          draftId,
         }),
       })
-      toast.success("Message sent")
+      toast.success(t("compose.sent"))
       navigate("/sent")
     } catch (err) {
       if (isApiError(err)) {
         const code = err.body.error as SendErrorCode | undefined
         toast.error(
-          (code && SEND_TOAST[code]) || err.message || "Send failed"
+          (code && t(`compose.errors.${code}`)) || err.message || t("compose.sendFailed")
         )
       } else {
-        toast.error("Send failed")
+        toast.error(t("compose.sendFailed"))
       }
     } finally {
       setSubmitting(false)
@@ -168,117 +332,140 @@ export function ComposeView() {
   if (loading) {
     return (
       <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">
-        Loading…
+        {t("app.loading")}
       </div>
     )
   }
 
   if (aliases.length === 0) {
     return (
-      <div className="flex flex-col gap-3 p-6">
-        <h1 className="font-heading text-lg font-medium">Compose</h1>
-        <p className="text-sm text-muted-foreground">
-          Create an enabled alias before sending mail.
-        </p>
-        <Button
-          type="button"
-          variant="outline"
-          className="w-fit"
-          onClick={() => navigate("/aliases")}
-        >
-          Manage aliases
-        </Button>
+      <div className="flex h-full min-h-0 flex-1 flex-col">
+        <PageHeader title={t("compose.title")} />
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="flex flex-col gap-3 px-4 py-6 sm:px-6">
+            <p className="text-sm text-muted-foreground">{t("compose.needAlias")}</p>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-fit"
+              onClick={() => navigate("/aliases")}
+            >
+              {t("compose.manageAliases")}
+            </Button>
+          </div>
+        </ScrollArea>
       </div>
     )
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <header className="border-b border-border px-6 py-4">
-        <h1 className="font-heading text-lg font-medium">
-          {replyId ? "Reply" : "Compose"}
-        </h1>
-      </header>
+    <div className="flex h-full min-h-0 flex-1 flex-col">
+      <PageHeader title={title} />
 
-      <form
-        className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-6 py-6"
-        onSubmit={form.handleSubmit(onSubmit)}
-      >
-        <FieldGroup>
-          <Field data-invalid={!!form.formState.errors.fromAliasId || undefined}>
-            <FieldLabel htmlFor="compose-from">From</FieldLabel>
-            <Controller
-              control={form.control}
-              name="fromAliasId"
-              render={({ field }) => (
-                <select
-                  id="compose-from"
-                  className={selectClassName}
-                  aria-invalid={!!form.formState.errors.fromAliasId}
-                  value={field.value}
-                  onChange={field.onChange}
-                  onBlur={field.onBlur}
-                  name={field.name}
-                  ref={field.ref}
-                >
-                  {aliases.map((alias) => (
-                    <option key={alias.id} value={alias.id}>
-                      {alias.address}
-                      {alias.isDefault ? " (default)" : ""}
-                    </option>
-                  ))}
-                </select>
-              )}
-            />
-            <FieldError errors={[form.formState.errors.fromAliasId]} />
-          </Field>
+      <ScrollArea className="min-h-0 flex-1">
+        <form
+          className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-6 sm:px-6"
+          onSubmit={form.handleSubmit(onSubmit)}
+        >
+          <FieldGroup>
+            <Field data-invalid={!!form.formState.errors.fromAliasId || undefined}>
+              <FieldLabel htmlFor="compose-from">{t("compose.from")}</FieldLabel>
+              <Controller
+                control={form.control}
+                name="fromAliasId"
+                render={({ field }) => (
+                  <Select
+                    items={aliasItems}
+                    value={field.value || null}
+                    onValueChange={(value) => field.onChange(value ?? "")}
+                  >
+                    <SelectTrigger
+                      id="compose-from"
+                      className="w-full"
+                      aria-invalid={!!form.formState.errors.fromAliasId}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {aliasItems.map((item) => (
+                          <SelectItem key={item.value} value={item.value}>
+                            {item.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              <FieldError errors={[form.formState.errors.fromAliasId]} />
+            </Field>
 
-          <Field data-invalid={!!form.formState.errors.to || undefined}>
-            <FieldLabel htmlFor="compose-to">To</FieldLabel>
-            <Input
-              id="compose-to"
-              placeholder="recipient@example.com"
-              autoComplete="email"
-              aria-invalid={!!form.formState.errors.to}
-              {...form.register("to")}
-            />
-            <FieldDescription>
-              Separate multiple addresses with commas.
-            </FieldDescription>
-            <FieldError errors={[form.formState.errors.to]} />
-          </Field>
+            <Field data-invalid={!!form.formState.errors.to || undefined}>
+              <FieldLabel htmlFor="compose-to">{t("compose.to")}</FieldLabel>
+              <Input
+                id="compose-to"
+                placeholder={t("compose.toPlaceholder")}
+                autoComplete="email"
+                aria-invalid={!!form.formState.errors.to}
+                {...form.register("to")}
+              />
+              <FieldDescription>{t("compose.toHint")}</FieldDescription>
+              <FieldError errors={[form.formState.errors.to]} />
+            </Field>
 
-          <Field>
-            <FieldLabel htmlFor="compose-subject">Subject</FieldLabel>
-            <Input id="compose-subject" {...form.register("subject")} />
-          </Field>
+            <Field>
+              <FieldLabel htmlFor="compose-subject">{t("compose.subject")}</FieldLabel>
+              <Input id="compose-subject" {...form.register("subject")} />
+            </Field>
 
-          <Field data-invalid={!!form.formState.errors.text || undefined}>
-            <FieldLabel htmlFor="compose-text">Message</FieldLabel>
-            <Textarea
-              id="compose-text"
-              className="min-h-48"
-              aria-invalid={!!form.formState.errors.text}
-              {...form.register("text")}
-            />
-            <FieldError errors={[form.formState.errors.text]} />
-          </Field>
-        </FieldGroup>
+            <Field data-invalid={!!form.formState.errors.text || undefined}>
+              <FieldLabel htmlFor="compose-text">{t("compose.body")}</FieldLabel>
+              <Textarea
+                id="compose-text"
+                className="min-h-48"
+                aria-invalid={!!form.formState.errors.text}
+                {...form.register("text")}
+              />
+              <FieldError errors={[form.formState.errors.text]} />
+            </Field>
+          </FieldGroup>
 
-        <div className="flex gap-2">
-          <Button type="submit" disabled={submitting}>
-            <PaperPlaneTiltIcon data-icon="inline-start" />
-            {submitting ? "Sending…" : "Send"}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => navigate(-1)}
-          >
-            Cancel
-          </Button>
-        </div>
-      </form>
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" disabled={submitting || savingDraft || deletingDraft}>
+              <PaperPlaneTiltIcon data-icon="inline-start" />
+              {submitting ? t("compose.sending") : t("compose.send")}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={submitting || savingDraft || deletingDraft}
+              onClick={() => void saveDraft()}
+            >
+              <FloppyDiskIcon data-icon="inline-start" />
+              {savingDraft ? t("compose.savingDraft") : t("compose.saveDraft")}
+            </Button>
+            {draftId ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={submitting || savingDraft || deletingDraft}
+                onClick={() => void deleteCurrentDraft()}
+              >
+                <TrashIcon data-icon="inline-start" />
+                {deletingDraft ? t("compose.deletingDraft") : t("compose.deleteDraft")}
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => navigate(-1)}
+            >
+              {t("app.cancel")}
+            </Button>
+          </div>
+        </form>
+      </ScrollArea>
     </div>
   )
 }

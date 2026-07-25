@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { insertUser } from '../src/db/client'
+import { insertUser, updateUserDisplayName } from '../src/db/client'
 
 function mockDb(changes: number) {
   const run = vi.fn().mockResolvedValue({ meta: { changes }, success: true })
@@ -49,5 +49,21 @@ describe('insertUser bootstrap', () => {
         createdAt: 2,
       }),
     ).resolves.toBe(false)
+  })
+})
+
+describe('updateUserDisplayName', () => {
+  it('updates display_name for the user id', async () => {
+    const { db, prepare, bind } = mockDb(1)
+    await updateUserDisplayName(db, 'u1', 'Ada')
+    const sql = String(prepare.mock.calls[0]?.[0] ?? '')
+    expect(sql).toMatch(/UPDATE\s+users\s+SET\s+display_name\s*=\s*\?\s+WHERE\s+id\s*=\s*\?/i)
+    expect(bind).toHaveBeenCalledWith('Ada', 'u1')
+  })
+
+  it('allows clearing display name to null', async () => {
+    const { db, bind } = mockDb(1)
+    await updateUserDisplayName(db, 'u1', null)
+    expect(bind).toHaveBeenCalledWith(null, 'u1')
   })
 })

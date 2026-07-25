@@ -4,6 +4,7 @@ import {
   findUserById,
   findUserByUsername,
   insertUser,
+  updateUserDisplayName,
   updateUserPassword,
   countUsers,
 } from '../db/client'
@@ -78,6 +79,35 @@ export function registerAuthRoutes(app: AuthApp): void {
 
   app.get('/api/auth/me', requireSession, async (c) => {
     const user = await findUserById(c.env.DB, c.get('userId'))
+    if (!user) {
+      return jsonError(c, 401, 'unauthorized')
+    }
+    return c.json({
+      username: user.username,
+      displayName: user.display_name,
+    })
+  })
+
+  app.patch('/api/auth/profile', requireSession, async (c) => {
+    let body: { displayName?: unknown }
+    try {
+      body = await c.req.json()
+    } catch {
+      return jsonError(c, 400, 'invalid_body')
+    }
+
+    if (!('displayName' in body)) {
+      return jsonError(c, 400, 'invalid_body')
+    }
+
+    const displayName =
+      typeof body.displayName === 'string' && body.displayName.trim()
+        ? body.displayName.trim().slice(0, 80)
+        : null
+
+    const userId = c.get('userId')
+    await updateUserDisplayName(c.env.DB, userId, displayName)
+    const user = await findUserById(c.env.DB, userId)
     if (!user) {
       return jsonError(c, 401, 'unauthorized')
     }

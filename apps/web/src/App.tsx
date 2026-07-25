@@ -8,6 +8,7 @@ import { ComposePage } from "@/pages/compose"
 import { LoginPage } from "@/pages/login"
 import { MailboxPage } from "@/pages/mailbox"
 import { MessagePage } from "@/pages/message"
+import { SettingsPage } from "@/pages/settings"
 import { SetupPage } from "@/pages/setup"
 
 export function App() {
@@ -20,11 +21,13 @@ export function App() {
           <Route element={<AppShell />}>
             <Route path="/" element={<Navigate to="/inbox" replace />} />
             <Route path="/inbox" element={<MailboxPage />} />
+            <Route path="/draft" element={<MailboxPage />} />
             <Route path="/sent" element={<MailboxPage />} />
             <Route path="/trash" element={<MailboxPage />} />
             <Route path="/m/:id" element={<MessagePage />} />
             <Route path="/compose" element={<ComposePage />} />
             <Route path="/aliases" element={<AliasesPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Route>
       </Routes>

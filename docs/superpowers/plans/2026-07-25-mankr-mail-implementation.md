@@ -1,4 +1,4 @@
-# Mankr Mail Implementation Plan
+# Mankr Flarepost Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -90,7 +90,7 @@ mankr-maill/
 **Interfaces:**
 - Produces: D1 tables `users`, `aliases`, `messages`; root scripts `dev`/`build`/`deploy`; `Env` type with `DB`, `ASSETS`, `EMAIL?`, secrets
 
-- [ ] **Step 1: Write root workspace files**
+- [x] **Step 1: Write root workspace files**
 
 `package.json`:
 ```json
@@ -133,7 +133,7 @@ dist
 .env.*
 ```
 
-- [ ] **Step 2: Write D1 migration `apps/worker/migrations/0001_init.sql`**
+- [x] **Step 2: Write D1 migration `apps/worker/migrations/0001_init.sql`**
 
 ```sql
 CREATE TABLE users (
@@ -174,7 +174,7 @@ CREATE INDEX idx_messages_folder_created ON messages(folder, created_at DESC);
 CREATE INDEX idx_messages_alias_folder_created ON messages(alias_id, folder, created_at DESC);
 ```
 
-- [ ] **Step 3: Write root `wrangler.toml`**
+- [x] **Step 3: Write root `wrangler.toml`**
 
 ```toml
 name = "mankr-mail"
@@ -202,7 +202,7 @@ SEND_CHANNEL = "cloudflare"
 EMAIL_DOMAIN = "example.com"
 ```
 
-- [ ] **Step 4: Minimal worker entry + package**
+- [x] **Step 4: Minimal worker entry + package**
 
 `apps/worker/package.json`:
 ```json
@@ -274,7 +274,7 @@ export default {
 }
 ```
 
-- [ ] **Step 5: Install and verify migration locally**
+- [x] **Step 5: Install and verify migration locally**
 
 ```bash
 corepack enable
@@ -285,7 +285,7 @@ pnpm db:migrate:local
 
 Expected: migration applied to local D1 without error.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add -A
@@ -317,7 +317,7 @@ EOF
   - Routes: `POST /api/auth/login`, `POST /api/auth/logout`, `POST /api/auth/password`, `GET /api/auth/me`
   - `pnpm --filter @mankr/worker exec tsx scripts/init-admin.ts` (or wrangler d1 execute helper)
 
-- [ ] **Step 1: Write failing auth unit tests**
+- [x] **Step 1: Write failing auth unit tests**
 
 `apps/worker/tests/auth.test.ts`:
 ```ts
@@ -348,7 +348,7 @@ describe('session', () => {
 })
 ```
 
-- [ ] **Step 2: Run tests — expect FAIL**
+- [x] **Step 2: Run tests — expect FAIL**
 
 ```bash
 pnpm --filter @mankr/worker test
@@ -356,13 +356,13 @@ pnpm --filter @mankr/worker test
 
 Expected: FAIL module not found / cannot resolve.
 
-- [ ] **Step 3: Implement password + session**
+- [x] **Step 3: Implement password + session**
 
 `password.ts` — WebCrypto PBKDF2-SHA-256, 100_000 iterations, format `pbkdf2$iterations$saltB64$hashB64`.
 
 `session.ts` — HMAC-SHA-256 over `userId.exp`, cookie name `mankr_session`, HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=7d. Export `Set-Cookie` builders for login/logout.
 
-- [ ] **Step 4: Implement Hono app + auth routes**
+- [x] **Step 4: Implement Hono app + auth routes**
 
 - Login body `{ username, password }` → 401 if invalid; else Set-Cookie.
 - Logout clears cookie.
@@ -372,7 +372,7 @@ Expected: FAIL module not found / cannot resolve.
 
 Wire `index.ts` `fetch` to Hono; non-`/api` → `env.ASSETS.fetch`.
 
-- [ ] **Step 5: Init admin script**
+- [x] **Step 5: Init admin script**
 
 Script args via env: `ADMIN_USERNAME`, `ADMIN_PASSWORD`. Insert single `users` row if none exists; refuse if user already present. Document usage with `wrangler d1 execute` or local script against D1.
 
@@ -384,7 +384,7 @@ Prefer a small worker-side approach: `POST /api/setup` **only when users table e
 
 Choose **empty-DB bootstrap endpoint** `POST /api/setup` (unguarded only when `COUNT(users)=0`).
 
-- [ ] **Step 6: Run tests — expect PASS; commit**
+- [x] **Step 6: Run tests — expect PASS; commit**
 
 ```bash
 pnpm --filter @mankr/worker test
@@ -407,14 +407,14 @@ git add -A && git commit -m "feat: add session auth and bootstrap setup"
   - `PATCH /api/aliases/:id` → `{ enabled?: boolean, isDefault?: boolean }`
   - Reject create when count ≥ 5 with `{ error: 'alias_limit', message: '...' }`
 
-- [ ] **Step 1: Write service tests for limit + default uniqueness**
+- [x] **Step 1: Write service tests for limit + default uniqueness**
 
 Test pure functions:
 - `normalizeAddress(localOrFull, domain)`
 - `assertCanCreate(count)` throws / returns error when count >= 5
 - Setting `isDefault=true` clears previous default
 
-- [ ] **Step 2: Implement service + routes; wire Hono**
+- [x] **Step 2: Implement service + routes; wire Hono**
 
 Rules:
 - Address must end with `@${EMAIL_DOMAIN}` after normalize.
@@ -422,7 +422,7 @@ Rules:
 - Cannot disable the only enabled alias if that would leave zero enabled (optional soft rule — prefer allow disable all; inbound simply drops).
 - Max 5 hard.
 
-- [ ] **Step 3: Test + commit**
+- [x] **Step 3: Test + commit**
 
 ```bash
 pnpm --filter @mankr/worker test
@@ -462,9 +462,9 @@ type MessageListItem = {
 
 Detail includes `textBody`, `htmlBody`, `aliasId`, `direction`, `lastErrorCode`.
 
-- [ ] **Step 1: Implement service with D1 queries + tests for restore folder mapping**
-- [ ] **Step 2: Wire routes; unauthorized without cookie**
-- [ ] **Step 3: Test + commit**
+- [x] **Step 1: Implement service with D1 queries + tests for restore folder mapping**
+- [x] **Step 2: Wire routes; unauthorized without cookie**
+- [x] **Step 3: Test + commit**
 
 ```bash
 git commit -m "feat: add mailbox message list and folder actions"
@@ -490,10 +490,10 @@ Flow:
 4. Extract text/html; if attachments present set `has_unsupported_attachments=1`.
 5. Insert `folder=inbox`, `direction=inbound`, `is_read=0`.
 
-- [ ] **Step 1: Unit-test MIME fixture parsing (multipart text+html+attachment flag)**
-- [ ] **Step 2: Implement handler; wire `email` export**
-- [ ] **Step 3: Add `apps/worker/tests/fixtures/sample.eml` minimal**
-- [ ] **Step 4: Test + commit**
+- [x] **Step 1: Unit-test MIME fixture parsing (multipart text+html+attachment flag)**
+- [x] **Step 2: Implement handler; wire `email` export**
+- [x] **Step 3: Add `apps/worker/tests/fixtures/sample.eml` minimal**
+- [x] **Step 4: Test + commit**
 
 ```bash
 git commit -m "feat: ingest Email Routing messages into D1 inbox"
@@ -551,9 +551,9 @@ Rules:
 - On success: insert `folder=sent`, `direction=outbound`, store `provider_message_id`.
 - On failure: **do not** insert sent; return `{ error: SendErrorCode, message: string }` with HTTP 400/429/502 mapping.
 
-- [ ] **Step 1: Adapter unit tests with mocked fetch / EMAIL binding**
-- [ ] **Step 2: Implement adapters + send route**
-- [ ] **Step 3: Test + commit**
+- [x] **Step 1: Adapter unit tests with mocked fetch / EMAIL binding**
+- [x] **Step 2: Implement adapters + send route**
+- [x] **Step 3: Test + commit**
 
 ```bash
 git commit -m "feat: add pluggable send adapters and compose API"
@@ -569,7 +569,7 @@ git commit -m "feat: add pluggable send adapters and compose API"
 - Create: `apps/web/src/lib/api.ts`, `sanitize.ts`
 - Create: `apps/web/src/App.tsx` routes shell
 
-- [ ] **Step 1: Init shadcn in apps/web**
+- [x] **Step 1: Init shadcn in apps/web**
 
 ```bash
 cd apps/web
@@ -585,7 +585,7 @@ pnpm dlx shadcn@latest add button input label card textarea separator dropdown-m
 ```
 (Run add from `apps/web` cwd.)
 
-- [ ] **Step 2: Configure Vite proxy + path aliases as preset provides**
+- [x] **Step 2: Configure Vite proxy + path aliases as preset provides**
 
 ```ts
 server: {
@@ -595,7 +595,7 @@ server: {
 },
 ```
 
-- [ ] **Step 3: `api.ts` thin fetch wrapper**
+- [x] **Step 3: `api.ts` thin fetch wrapper**
 
 ```ts
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -618,7 +618,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 `sanitize.ts`: `DOMPurify.sanitize(html)`.
 
-- [ ] **Step 4: App shell routes**
+- [x] **Step 4: App shell routes**
 
 | Path | Page |
 |------|------|
@@ -632,7 +632,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 Layout: left nav folders + aliases link; main outlet. Auth gate: call `/api/auth/me` on load.
 
-- [ ] **Step 5: Build empty shell; commit**
+- [x] **Step 5: Build empty shell; commit**
 
 ```bash
 pnpm --filter @mankr/web build
@@ -656,12 +656,12 @@ git commit -m "feat: init web app with shadcn preset and app shell"
 7. Empty trash button on trash folder.
 8. Visible free-tier boundaries: short note in aliases page + README.
 
-- [ ] **Step 1: Implement auth pages + session gate**
-- [ ] **Step 2: Implement aliases page**
-- [ ] **Step 3: Implement mailbox list + detail**
-- [ ] **Step 4: Implement compose + reply**
-- [ ] **Step 5: Manual smoke with `pnpm dev` (API stub data via local D1 seed)**
-- [ ] **Step 6: Commit**
+- [x] **Step 1: Implement auth pages + session gate**
+- [x] **Step 2: Implement aliases page**
+- [x] **Step 3: Implement mailbox list + detail**
+- [x] **Step 4: Implement compose + reply**
+- [x] **Step 5: Manual smoke with `pnpm dev` (API stub data via local D1 seed)**
+- [x] **Step 6: Commit**
 
 ```bash
 git commit -m "feat: ship P0 web client for mail and aliases"
@@ -688,9 +688,9 @@ git commit -m "feat: ship P0 web client for mail and aliases"
 5. **Total Free send note:** Cloudflare arbitrary outbound needs Paid; use `SEND_CHANNEL=resend` + free Resend API key for zero-card arbitrary send.
 6. Capability boundaries: 5 aliases, no attachments, single user/domain.
 
-- [ ] **Step 1: Write README + DEPLOY**
-- [ ] **Step 2: Ensure `pnpm build` succeeds end-to-end**
-- [ ] **Step 3: Commit**
+- [x] **Step 1: Write README + DEPLOY**
+- [x] **Step 2: Ensure `pnpm build` succeeds end-to-end**
+- [x] **Step 3: Commit**
 
 ```bash
 git commit -m "docs: add deploy guide and Total Free send channel notes"
@@ -700,7 +700,7 @@ git commit -m "docs: add deploy guide and Total Free send channel notes"
 
 ### Task 10: End-to-end verification checklist
 
-- [ ] **Step 1: Local verify**
+- [x] **Step 1: Local verify**
 
 ```bash
 pnpm install
@@ -710,17 +710,17 @@ pnpm dev
 ```
 
 Checklist:
-- [ ] setup → login → logout → login
-- [ ] change password
-- [ ] create 5 aliases; 6th rejected
-- [ ] insert mock inbound row (SQL or fixture handler test) → appears in inbox
-- [ ] read marks read; HTML sanitized
-- [ ] send with `SEND_CHANNEL=resend` mocked or `not_configured` error visible
-- [ ] trash / restore / empty
-- [ ] unauthenticated `/api/messages` → 401
+- [x] setup → login → logout → login
+- [x] change password
+- [x] create 5 aliases; 6th rejected
+- [x] insert mock inbound row (SQL or fixture handler test) → appears in inbox
+- [x] read marks read; HTML sanitized
+- [x] send with `SEND_CHANNEL=resend` mocked or `not_configured` error visible
+- [x] trash / restore / empty
+- [x] unauthenticated `/api/messages` → 401
 
-- [ ] **Step 2: Fix any gaps found**
-- [ ] **Step 3: Final commit if needed**
+- [x] **Step 2: Fix any gaps found**
+- [x] **Step 3: Final commit if needed**
 
 ```bash
 git commit -m "fix: close verification gaps for P0 mail loop"

@@ -1,9 +1,9 @@
-# 技术选型与架构：Mankr Mail
+# 技术选型与架构：Mankr Flarepost
 
 | 项 | 内容 |
 |----|------|
 | 文档类型 | 技术选型与架构设计 |
-| 工作名 | Mankr Mail（仓库：`mankr-maill`） |
+| 工作名 | Mankr Flarepost（仓库：`mankr-maill`） |
 | 日期 | 2026-07-25 |
 | 状态 | 已确认（待实现计划） |
 | 关联 PRD | [2026-07-25-cloudflare-personal-mail-prd.md](./2026-07-25-cloudflare-personal-mail-prd.md) |

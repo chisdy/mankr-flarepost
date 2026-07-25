@@ -1,4 +1,4 @@
-# Mankr Mail 部署指南
+# Mankr Flarepost 部署指南
 
 本文覆盖一键部署、手工 pnpm 路径、部署后清单，以及 Total Free 发信渠道说明。
 

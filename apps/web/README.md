@@ -1,6 +1,6 @@
 # @mankr/web
 
-Vite + React SPA for Mankr Mail (shadcn preset `b39gyV42i`).
+Vite + React SPA for Mankr Flarepost (shadcn preset `b39gyV42i`).
 
 ## Free-tier boundaries (P0)
 

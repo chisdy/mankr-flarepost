@@ -11,6 +11,9 @@ import {
   restoreTargetFolder,
   emptyTrash,
   getMessage,
+  insertDraft,
+  updateDraft,
+  deleteDraft,
 } from '../src/messages/service'
 
 describe('restoreTargetFolder', () => {
@@ -140,17 +143,29 @@ describe('folder actions', () => {
   })
 
   it('moveToTrash sets folder=trash and deleted_at', async () => {
+    const first = vi.fn().mockResolvedValue({ id: 'm1', folder: 'inbox' })
     const run = vi.fn().mockResolvedValue({ meta: { changes: 1 }, success: true })
-    const bind = vi.fn().mockReturnValue({ run })
+    const bind = vi.fn().mockReturnValue({ first, run })
     const prepare = vi.fn().mockReturnValue({ bind })
     const db = { prepare } as unknown as D1Database
 
     expect(await moveToTrash(db, 'm1')).toBe(true)
-    const sql = String(prepare.mock.calls[0]?.[0] ?? '')
-    expect(sql).toMatch(/SET\s+folder\s*=\s*'trash'/i)
-    expect(sql).toMatch(/deleted_at\s*=\s*\?/i)
-    expect(bind.mock.calls[0]?.[0]).toEqual(expect.any(Number))
-    expect(bind.mock.calls[0]?.[1]).toBe('m1')
+    const selectSql = String(prepare.mock.calls[0]?.[0] ?? '')
+    expect(selectSql).toMatch(/SELECT\s+id,\s*folder\s+FROM\s+messages/i)
+    const updateSql = String(prepare.mock.calls[1]?.[0] ?? '')
+    expect(updateSql).toMatch(/SET\s+folder\s*=\s*'trash'/i)
+    expect(updateSql).toMatch(/deleted_at\s*=\s*\?/i)
+    expect(bind.mock.calls[1]?.[0]).toEqual(expect.any(Number))
+    expect(bind.mock.calls[1]?.[1]).toBe('m1')
+  })
+
+  it('moveToTrash refuses drafts', async () => {
+    const first = vi.fn().mockResolvedValue({ id: 'd1', folder: 'draft' })
+    const bind = vi.fn().mockReturnValue({ first })
+    const prepare = vi.fn().mockReturnValue({ bind })
+    const db = { prepare } as unknown as D1Database
+
+    await expect(moveToTrash(db, 'd1')).resolves.toBe(false)
   })
 
   it('restoreMessage uses direction mapping and clears deleted_at', async () => {
@@ -184,6 +199,61 @@ describe('folder actions', () => {
     expect(await emptyTrash(db)).toBe(3)
     const sql = String(prepare.mock.calls[0]?.[0] ?? '')
     expect(sql).toMatch(/DELETE\s+FROM\s+messages\s+WHERE\s+folder\s*=\s*'trash'/i)
+  })
+})
+
+describe('drafts', () => {
+  it('insertDraft writes folder=draft outbound', async () => {
+    const run = vi.fn().mockResolvedValue({ meta: { changes: 1 }, success: true })
+    const bind = vi.fn().mockReturnValue({ run })
+    const prepare = vi.fn().mockReturnValue({ bind })
+    const db = { prepare } as unknown as D1Database
+
+    const result = await insertDraft(db, {
+      aliasId: 'a1',
+      fromAddr: 'me@example.com',
+      toAddrs: ['you@example.com'],
+      subject: 'Draft',
+      textBody: 'hello',
+    })
+    expect(result.id).toMatch(/^[0-9a-f-]{36}$/i)
+    const sql = String(prepare.mock.calls[0]?.[0] ?? '')
+    expect(sql).toMatch(/folder,\s*direction/)
+    expect(sql).toMatch(/'draft',\s*'outbound'/)
+    expect(bind.mock.calls[0]?.[1]).toBe('a1')
+    expect(bind.mock.calls[0]?.[2]).toBe('me@example.com')
+    expect(bind.mock.calls[0]?.[3]).toBe(JSON.stringify(['you@example.com']))
+  })
+
+  it('updateDraft only touches draft rows', async () => {
+    const run = vi.fn().mockResolvedValue({ meta: { changes: 1 }, success: true })
+    const bind = vi.fn().mockReturnValue({ run })
+    const prepare = vi.fn().mockReturnValue({ bind })
+    const db = { prepare } as unknown as D1Database
+
+    expect(
+      await updateDraft(db, 'd1', {
+        aliasId: 'a1',
+        fromAddr: 'me@example.com',
+        toAddrs: [],
+        subject: 'Updated',
+        textBody: 'body',
+      }),
+    ).toBe(true)
+    const sql = String(prepare.mock.calls[0]?.[0] ?? '')
+    expect(sql).toMatch(/WHERE\s+id\s*=\s*\?\s+AND\s+folder\s*=\s*'draft'/i)
+  })
+
+  it('deleteDraft only deletes draft folder rows', async () => {
+    const run = vi.fn().mockResolvedValue({ meta: { changes: 1 }, success: true })
+    const bind = vi.fn().mockReturnValue({ run })
+    const prepare = vi.fn().mockReturnValue({ bind })
+    const db = { prepare } as unknown as D1Database
+
+    expect(await deleteDraft(db, 'd1')).toBe(true)
+    const sql = String(prepare.mock.calls[0]?.[0] ?? '')
+    expect(sql).toMatch(/DELETE\s+FROM\s+messages\s+WHERE\s+id\s*=\s*\?\s+AND\s+folder\s*=\s*'draft'/i)
+    expect(bind).toHaveBeenCalledWith('d1')
   })
 })
 

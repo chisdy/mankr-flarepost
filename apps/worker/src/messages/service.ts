@@ -1,4 +1,4 @@
-export type Folder = 'inbox' | 'sent' | 'trash'
+export type Folder = 'inbox' | 'sent' | 'trash' | 'draft'
 export type Direction = 'inbound' | 'outbound'
 
 export type MessageListItem = {
@@ -37,7 +37,7 @@ export type MessageRow = {
   deleted_at: number | null
 }
 
-export const FOLDERS: readonly Folder[] = ['inbox', 'sent', 'trash'] as const
+export const FOLDERS: readonly Folder[] = ['inbox', 'sent', 'trash', 'draft'] as const
 export const DEFAULT_LIST_LIMIT = 50
 export const MAX_LIST_LIMIT = 100
 
@@ -50,8 +50,8 @@ export class InvalidCursorError extends Error {
   }
 }
 
-/** Restore target: inbound → inbox, outbound → sent. */
-export function restoreTargetFolder(direction: Direction): Exclude<Folder, 'trash'> {
+/** Restore target: inbound → inbox, outbound → sent. Drafts are hard-deleted, not trashed. */
+export function restoreTargetFolder(direction: Direction): Exclude<Folder, 'trash' | 'draft'> {
   return direction === 'inbound' ? 'inbox' : 'sent'
 }
 
@@ -192,6 +192,12 @@ export async function markRead(db: D1Database, id: string): Promise<boolean> {
 }
 
 export async function moveToTrash(db: D1Database, id: string): Promise<boolean> {
+  const row = await db
+    .prepare('SELECT id, folder FROM messages WHERE id = ?')
+    .bind(id)
+    .first<{ id: string; folder: Folder }>()
+  if (!row || row.folder === 'draft') return false
+
   const deletedAt = Date.now()
   const result = await db
     .prepare(`UPDATE messages SET folder = 'trash', deleted_at = ? WHERE id = ?`)
@@ -203,7 +209,7 @@ export async function moveToTrash(db: D1Database, id: string): Promise<boolean> 
 export async function restoreMessage(
   db: D1Database,
   id: string,
-): Promise<{ folder: Exclude<Folder, 'trash'> } | null> {
+): Promise<{ folder: Exclude<Folder, 'trash' | 'draft'> } | null> {
   const row = await db
     .prepare('SELECT id, folder, direction FROM messages WHERE id = ?')
     .bind(id)
@@ -309,4 +315,77 @@ export async function insertOutboundMessage(
     )
     .run()
   return { id }
+}
+
+export type UpsertDraftInput = {
+  aliasId: string
+  fromAddr: string
+  toAddrs: string[]
+  subject: string
+  textBody: string
+  htmlBody?: string | null
+}
+
+/** Create a new draft message. */
+export async function insertDraft(
+  db: D1Database,
+  input: UpsertDraftInput,
+): Promise<{ id: string }> {
+  const id = crypto.randomUUID()
+  const createdAt = Date.now()
+  await db
+    .prepare(
+      `INSERT INTO messages (
+         id, alias_id, folder, direction, from_addr, to_addrs, subject,
+         text_body, html_body, is_read, has_unsupported_attachments, created_at
+       ) VALUES (?, ?, 'draft', 'outbound', ?, ?, ?, ?, ?, 1, 0, ?)`,
+    )
+    .bind(
+      id,
+      input.aliasId,
+      input.fromAddr,
+      JSON.stringify(input.toAddrs),
+      input.subject,
+      input.textBody,
+      input.htmlBody ?? null,
+      createdAt,
+    )
+    .run()
+  return { id }
+}
+
+/** Update an existing draft. Returns false if not found or not a draft. */
+export async function updateDraft(
+  db: D1Database,
+  id: string,
+  input: UpsertDraftInput,
+): Promise<boolean> {
+  const result = await db
+    .prepare(
+      `UPDATE messages
+       SET alias_id = ?, from_addr = ?, to_addrs = ?, subject = ?,
+           text_body = ?, html_body = ?, created_at = ?
+       WHERE id = ? AND folder = 'draft'`,
+    )
+    .bind(
+      input.aliasId,
+      input.fromAddr,
+      JSON.stringify(input.toAddrs),
+      input.subject,
+      input.textBody,
+      input.htmlBody ?? null,
+      Date.now(),
+      id,
+    )
+    .run()
+  return (result.meta.changes ?? 0) > 0
+}
+
+/** Hard-delete a draft. Returns false if not found or not a draft. */
+export async function deleteDraft(db: D1Database, id: string): Promise<boolean> {
+  const result = await db
+    .prepare(`DELETE FROM messages WHERE id = ? AND folder = 'draft'`)
+    .bind(id)
+    .run()
+  return (result.meta.changes ?? 0) > 0
 }

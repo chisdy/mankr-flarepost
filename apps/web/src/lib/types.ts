@@ -11,7 +11,7 @@ export type Alias = {
   createdAt: number
 }
 
-export type Folder = "inbox" | "sent" | "trash"
+export type Folder = "inbox" | "sent" | "trash" | "draft"
 
 export type MessageListItem = {
   id: string

@@ -3,7 +3,7 @@ import { getSendAdapter, isSendError, type SendErrorCode } from '../adapters/sen
 import { findAliasById } from '../aliases/service'
 import type { Env } from '../env'
 import type { AppVariables } from '../http/middleware'
-import { getMessage, insertOutboundMessage } from '../messages/service'
+import { getMessage, insertOutboundMessage, deleteDraft } from '../messages/service'
 import { checkRateLimit, incrementRateLimit } from './rate-limit'
 
 type SendEnv = { Bindings: Env; Variables: AppVariables }
@@ -17,6 +17,7 @@ type SendBody = {
   text?: unknown
   html?: unknown
   replyToMessageId?: unknown
+  draftId?: unknown
 }
 
 const ERROR_STATUS: Record<SendErrorCode, 400 | 429 | 502> = {
@@ -115,6 +116,10 @@ export function registerSendRoutes(app: SendApp): void {
       htmlBody: html ?? null,
       providerMessageId: result.id ?? null,
     })
+
+    if (isNonEmptyString(body.draftId)) {
+      await deleteDraft(c.env.DB, body.draftId.trim())
+    }
 
     return c.json({ id: stored.id, providerMessageId: result.id ?? null })
   })

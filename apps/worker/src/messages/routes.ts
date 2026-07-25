@@ -1,19 +1,93 @@
-import type { Hono } from 'hono'
+import type { Context, Hono } from 'hono'
+import { findAliasById } from '../aliases/service'
 import type { Env } from '../env'
 import { jsonError } from '../http/errors'
 import type { AppVariables } from '../http/middleware'
 import {
   InvalidCursorError,
+  deleteDraft,
   emptyTrash,
   getMessage,
+  insertDraft,
   isFolder,
   listMessages,
   markRead,
   moveToTrash,
   restoreMessage,
+  updateDraft,
 } from './service'
 
-type MessageApp = Hono<{ Bindings: Env; Variables: AppVariables }>
+type MessageEnv = { Bindings: Env; Variables: AppVariables }
+type MessageApp = Hono<MessageEnv>
+type MessageContext = Context<MessageEnv>
+
+type DraftBody = {
+  fromAliasId?: unknown
+  to?: unknown
+  subject?: unknown
+  text?: unknown
+  html?: unknown
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0
+}
+
+function parseTo(value: unknown): string[] | null {
+  if (value === undefined || value === null) return []
+  if (!Array.isArray(value)) return null
+  const addrs = value.filter((x): x is string => typeof x === 'string')
+  if (addrs.length !== value.length) return null
+  return addrs.map((a) => a.trim()).filter(Boolean)
+}
+
+type ParsedDraft = {
+  fromAliasId: string
+  fromAddr: string
+  to: string[]
+  subject: string
+  text: string
+  html: string | null
+}
+
+async function parseDraftBody(
+  c: MessageContext,
+): Promise<{ ok: true; data: ParsedDraft } | { ok: false; response: Response }> {
+  let body: DraftBody
+  try {
+    body = (await c.req.json()) as DraftBody
+  } catch {
+    return { ok: false, response: jsonError(c, 400, 'invalid_body') }
+  }
+
+  if (!isNonEmptyString(body.fromAliasId)) {
+    return { ok: false, response: jsonError(c, 400, 'invalid_body') }
+  }
+  const to = parseTo(body.to)
+  if (to === null) {
+    return { ok: false, response: jsonError(c, 400, 'invalid_body') }
+  }
+  if (typeof body.subject !== 'string' || typeof body.text !== 'string') {
+    return { ok: false, response: jsonError(c, 400, 'invalid_body') }
+  }
+
+  const alias = await findAliasById(c.env.DB, body.fromAliasId.trim())
+  if (!alias || !alias.enabled) {
+    return { ok: false, response: jsonError(c, 400, 'invalid_alias') }
+  }
+
+  return {
+    ok: true,
+    data: {
+      fromAliasId: alias.id,
+      fromAddr: alias.address,
+      to,
+      subject: body.subject,
+      text: body.text,
+      html: typeof body.html === 'string' ? body.html : null,
+    },
+  }
+}
 
 export function registerMessageRoutes(app: MessageApp): void {
   app.get('/api/messages', async (c) => {
@@ -45,6 +119,43 @@ export function registerMessageRoutes(app: MessageApp): void {
   app.delete('/api/messages/trash', async (c) => {
     const deleted = await emptyTrash(c.env.DB)
     return c.json({ deleted })
+  })
+
+  app.post('/api/messages/drafts', async (c) => {
+    const parsed = await parseDraftBody(c)
+    if (!parsed.ok) return parsed.response
+
+    const stored = await insertDraft(c.env.DB, {
+      aliasId: parsed.data.fromAliasId,
+      fromAddr: parsed.data.fromAddr,
+      toAddrs: parsed.data.to,
+      subject: parsed.data.subject,
+      textBody: parsed.data.text,
+      htmlBody: parsed.data.html,
+    })
+    return c.json({ id: stored.id }, 201)
+  })
+
+  app.put('/api/messages/drafts/:id', async (c) => {
+    const parsed = await parseDraftBody(c)
+    if (!parsed.ok) return parsed.response
+
+    const ok = await updateDraft(c.env.DB, c.req.param('id'), {
+      aliasId: parsed.data.fromAliasId,
+      fromAddr: parsed.data.fromAddr,
+      toAddrs: parsed.data.to,
+      subject: parsed.data.subject,
+      textBody: parsed.data.text,
+      htmlBody: parsed.data.html,
+    })
+    if (!ok) return jsonError(c, 404, 'not_found')
+    return c.json({ id: c.req.param('id') })
+  })
+
+  app.delete('/api/messages/drafts/:id', async (c) => {
+    const ok = await deleteDraft(c.env.DB, c.req.param('id'))
+    if (!ok) return jsonError(c, 404, 'not_found')
+    return c.json({ ok: true })
   })
 
   app.get('/api/messages/:id', async (c) => {

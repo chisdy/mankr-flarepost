@@ -6,6 +6,7 @@ import {
   useMemo,
   useState,
 } from "react"
+import { useTranslation } from "react-i18next"
 import { Navigate, Outlet, useLocation } from "react-router"
 
 import { api, isApiError } from "@/lib/api"
@@ -36,6 +37,7 @@ export function useAuth(): AuthContextValue {
 }
 
 export function AuthGate() {
+  const { t } = useTranslation()
   const location = useLocation()
   const [auth, setAuth] = useState<AuthState>({ status: "loading" })
 
@@ -81,7 +83,7 @@ export function AuthGate() {
   if (auth.status === "loading") {
     return (
       <div className="flex min-h-svh items-center justify-center text-sm text-muted-foreground">
-        Loading…
+        {t("app.loading")}
       </div>
     )
   }

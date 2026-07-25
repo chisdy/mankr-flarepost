@@ -1,4 +1,4 @@
-# Mankr Mail
+# Mankr Flarepost
 
 面向个人站长的轻量域名邮件客户端：在 Cloudflare 免费层内完成日常收、读、写、回。
 
@@ -29,6 +29,12 @@
 3. 设置变量：`EMAIL_DOMAIN`、`SEND_CHANNEL`（Total Free 推荐 `resend`）
 4. 按 [部署清单](./docs/DEPLOY.md#部署后清单) 配置 Email Routing、打开 `/setup`、创建别名并测收发
 
+## 国际化
+
+Web UI 使用 `i18next`，当前内置 **English (`en`)** 与 **简体中文 (`zh-CN`)**。语言偏好保存在 `localStorage`（键 `mankr.locale`），也可在侧栏 / 登录页切换。
+
+新增语言：在 `apps/web/src/i18n/locales/` 增加 JSON，并把它加入 `apps/web/src/i18n/index.ts` 的 `SUPPORTED_LOCALES` 与 `resources`。
+
 ## 本地开发
 
 **要求：** Node.js ≥ 22.12，pnpm 经 Corepack（仓库钉扎 `pnpm@11.17.0`）。
@@ -38,9 +44,14 @@ corepack enable
 corepack prepare pnpm@11.17.0 --activate
 pnpm install
 pnpm db:migrate:local
+# 可选：写入演示别名与邮件（需已有 users；会清空 aliases/messages）
+pnpm db:seed:local
 # 复制 .dev.vars.example → .dev.vars，填入 COOKIES_SECRET 等
-pnpm dev
+pnpm start   # 一键启动前端 Vite + 后端 Worker（等同 pnpm dev）
 ```
+
+- 前端：http://localhost:5173（`/api` 代理到 Worker）
+- 后端：http://127.0.0.1:8787
 
 首次启动后打开 `/setup` 创建管理员（仅当 `users` 表为空时可用）。
 
