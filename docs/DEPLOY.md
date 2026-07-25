@@ -36,7 +36,13 @@ corepack prepare pnpm@11.17.0 --activate
    ```
 
 3. 在向导中确认 Worker 名、D1 等资源；构建命令会使用根目录 `pnpm build` / `pnpm deploy`（Workers Builds 会检测 `package.json` scripts）。
-4. 部署成功后，在 Cloudflare Dashboard → 该 Worker → **Settings / Variables and Secrets** 中配置：
+4. **D1 migrations：** 根目录 `pnpm deploy` 会在 `wrangler deploy` 前执行 `wrangler d1 migrations apply mankr-mail --remote`。若向导/Dashboard 的 Deploy 按钮只跑构建或 `wrangler deploy`、**未**执行完整 npm `deploy` script，请在首次部署后本地补跑一次：
+
+   ```bash
+   pnpm db:migrate:remote
+   ```
+
+5. 部署成功后，在 Cloudflare Dashboard → 该 Worker → **Settings / Variables and Secrets** 中配置：
 
    | 名称 | 类型 | 必填 | 说明 |
    |------|------|------|------|
@@ -45,7 +51,7 @@ corepack prepare pnpm@11.17.0 --activate
    | `EMAIL_DOMAIN` | Var | 是 | 如 `example.com`（勿带 `@`） |
    | `SEND_CHANNEL` | Var | 是 | `resend`（推荐 Total Free）/ `cloudflare` / `mailchannels` |
 
-5. 继续完成下方 [部署后清单](#部署后清单)。
+6. 继续完成下方 [部署后清单](#部署后清单)。
 
 > 也可在已部署的 Worker 详情页使用官方「分享」生成 Deploy 按钮片段，贴回你自己的 README。
 
@@ -62,15 +68,13 @@ pnpm install
 #      （首次可用：npx wrangler d1 create mankr-mail）
 #    - [vars] 中设置 EMAIL_DOMAIN、SEND_CHANNEL
 
-# 3. 远程迁移
-pnpm db:migrate:remote
-
-# 4. Secrets（勿写入仓库）
+# 3. Secrets（勿写入仓库）
 npx wrangler secret put COOKIES_SECRET
 # Total Free 任意外发时：
 npx wrangler secret put RESEND_API_KEY
 
-# 5. 构建并部署（会 build web assets + wrangler deploy）
+# 4. 构建、远程 D1 migrations、再 wrangler deploy
+#    （等价于 build → db:migrate:remote → deploy）
 pnpm deploy
 ```
 
@@ -88,14 +92,19 @@ pnpm dev
 
 按顺序完成：
 
-### 1. 确认环境变量与 Secrets
+### 1. 确认 D1 migrations 已应用
+
+- [ ] 若用 **`pnpm deploy`**：脚本已包含 `wrangler d1 migrations apply mankr-mail --remote`，一般无需再跑
+- [ ] 若只用 **Dashboard Deploy 按钮**（可能未跑完整 npm `deploy` script）：本地执行一次 `pnpm db:migrate:remote`
+
+### 2. 确认环境变量与 Secrets
 
 - [ ] `EMAIL_DOMAIN` = 你的域名（如 `mail.example.com` 的根域 `example.com`，与别名后缀一致）
 - [ ] `SEND_CHANNEL` = `resend`（Total Free）或你选择的渠道
 - [ ] `COOKIES_SECRET` 已设置且足够长
 - [ ] 若 `resend`：`RESEND_API_KEY` 已设置
 
-### 2. Cloudflare Email Routing → Worker
+### 3. Cloudflare Email Routing → Worker
 
 1. Dashboard → **Email** → **Email Routing** → 启用该域名的 Routing。
 2. 添加 **Catch-all**（或按别名逐条）规则，动作为 **Send to a Worker**，选择本项目的 `mankr-mail` Worker。
@@ -103,17 +112,17 @@ pnpm dev
 
 未接到 Worker 的邮件不会进入收件箱。
 
-### 3. 初始化管理员（`/setup`）
+### 4. 初始化管理员（`/setup`）
 
 1. 打开 Worker 的 `https://<你的-workers-子域>/setup`（或自定义域）。
 2. 创建用户名与密码（**仅当库中尚无用户时可成功**；已有用户则拒绝）。
 3. 随后使用 `/login` 登录。
 
-### 4. 创建别名（≤ 5）
+### 5. 创建别名（≤ 5）
 
 登录后在设置/别名页创建地址（本地部分或完整 `local@EMAIL_DOMAIN`）。第 6 个会被拒绝。
 
-### 5. 测收发
+### 6. 测收发
 
 1. **入站**：从外部邮箱向某一别名发一封测试信 → 收件箱应出现。
 2. **回复 / 新写**：在 UI 中回复或撰写 → 检查对方是否收到。

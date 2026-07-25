@@ -24,9 +24,10 @@
 
 部署完成后务必：
 
-1. 设置 Secret：`COOKIES_SECRET`（必填）；若用 Resend，再设 `RESEND_API_KEY`
-2. 设置变量：`EMAIL_DOMAIN`、`SEND_CHANNEL`（Total Free 推荐 `resend`）
-3. 按 [部署清单](./docs/DEPLOY.md#部署后清单) 配置 Email Routing、打开 `/setup`、创建别名并测收发
+1. **D1 migrations：** `pnpm deploy` 会自动 `wrangler d1 migrations apply mankr-mail --remote`。若只用 Dashboard Deploy 按钮（未必跑完整 npm `deploy` script），请补跑一次 `pnpm db:migrate:remote`
+2. 设置 Secret：`COOKIES_SECRET`（必填）；若用 Resend，再设 `RESEND_API_KEY`
+3. 设置变量：`EMAIL_DOMAIN`、`SEND_CHANNEL`（Total Free 推荐 `resend`）
+4. 按 [部署清单](./docs/DEPLOY.md#部署后清单) 配置 Email Routing、打开 `/setup`、创建别名并测收发
 
 ## 本地开发
 
@@ -47,8 +48,7 @@ pnpm dev
 
 ```bash
 pnpm install
-pnpm db:migrate:remote
-pnpm deploy
+pnpm deploy   # build + remote D1 migrations + wrangler deploy
 ```
 
 细节与发信渠道说明见 [docs/DEPLOY.md](./docs/DEPLOY.md)。
