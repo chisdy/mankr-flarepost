@@ -66,8 +66,11 @@ export function OnboardingGuide({
           {aliasCount === 0 ? (
             <>
               {t("onboarding.stepAlias")}{" "}
-              <Link to="/aliases" className="text-foreground underline">
-                {t("nav.aliases")}
+              <Link
+                to="/settings?tab=mail"
+                className="text-foreground underline"
+              >
+                {t("settings.tabMail")}
               </Link>
             </>
           ) : (

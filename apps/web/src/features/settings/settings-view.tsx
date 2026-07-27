@@ -1,8 +1,16 @@
 import { zodResolver } from "@hookform/resolvers/zod"
+import {
+  AtIcon,
+  FunnelIcon,
+  KeyIcon,
+  PaletteIcon,
+  ShieldCheckIcon,
+  UserCircleIcon,
+} from "@phosphor-icons/react"
 import { useEffect, useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
-import { Link } from "react-router"
+import { useSearchParams } from "react-router"
 import { toast } from "sonner"
 import { z } from "zod"
 
@@ -11,7 +19,14 @@ import { LanguageSwitcher } from "@/components/language-switcher"
 import { PageHeader } from "@/components/page-header"
 import { ThemeSwitcher } from "@/components/theme-switcher"
 import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import {
   Field,
   FieldDescription,
@@ -20,20 +35,23 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Separator } from "@/components/ui/separator"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { ChangePasswordDialog } from "@/features/auth/change-password-dialog"
+import { AliasesSettings } from "@/features/settings/aliases-settings"
 import { ApiKeysSettings } from "@/features/settings/api-keys-settings"
 import { TagsFiltersSettings } from "@/features/settings/tags-filters-settings"
 import { api, isApiError } from "@/lib/api"
 import type { Alias, AuthUser } from "@/lib/types"
+import { cn } from "@/lib/utils"
+
+type TabKey = "general" | "security" | "mail" | "tags" | "apikeys"
+
+const TAB_KEYS: TabKey[] = ["general", "security", "mail", "tags", "apikeys"]
+
+function parseTab(value: string | null): TabKey {
+  if (value && TAB_KEYS.includes(value as TabKey)) return value as TabKey
+  return "general"
+}
 
 type ProfileValues = {
   displayName: string
@@ -42,12 +60,14 @@ type ProfileValues = {
 export function SettingsView() {
   const { t } = useTranslation()
   const { user, setUser } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [activeTab, setActiveTab] = useState<TabKey>(() =>
+    parseTab(searchParams.get("tab"))
+  )
   const [passwordOpen, setPasswordOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [aliases, setAliases] = useState<Alias[]>([])
   const [aliasesLoading, setAliasesLoading] = useState(true)
-  const [defaultBusy, setDefaultBusy] = useState(false)
-  const [defaultAliasId, setDefaultAliasId] = useState<string | null>(null)
 
   const schema = useMemo(
     () =>
@@ -65,17 +85,19 @@ export function SettingsView() {
   })
 
   useEffect(() => {
+    const next = parseTab(searchParams.get("tab"))
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync tab from URL
+    setActiveTab(next)
+  }, [searchParams])
+
+  useEffect(() => {
     let cancelled = false
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch on mount / locale change
     setAliasesLoading(true)
     api<{ aliases: Alias[] }>("/api/aliases")
       .then((data) => {
         if (cancelled) return
         setAliases(data.aliases)
-        const currentDefault =
-          data.aliases.find((a) => a.isDefault)?.id ??
-          data.aliases.find((a) => a.enabled)?.id ??
-          null
-        setDefaultAliasId(currentDefault)
       })
       .catch((err) => {
         if (!cancelled) {
@@ -90,11 +112,14 @@ export function SettingsView() {
     }
   }, [t])
 
-  const enabledAliases = aliases.filter((a) => a.enabled)
-  const aliasItems = enabledAliases.map((alias) => ({
-    label: `${alias.address}${alias.isDefault ? t("compose.defaultSuffix") : ""}`,
-    value: alias.id,
-  }))
+  function selectTab(tab: TabKey) {
+    setActiveTab(tab)
+    if (tab === "general") {
+      setSearchParams({}, { replace: true })
+    } else {
+      setSearchParams({ tab }, { replace: true })
+    }
+  }
 
   async function onSubmit(values: ProfileValues) {
     setSaving(true)
@@ -115,187 +140,199 @@ export function SettingsView() {
     }
   }
 
-  async function setDefaultAlias(id: string | null) {
-    if (!id || id === defaultAliasId) return
-    setDefaultBusy(true)
-    try {
-      const updated = await api<Alias>(`/api/aliases/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ isDefault: true }),
-      })
-      setAliases((prev) =>
-        prev.map((a) => ({
-          ...a,
-          isDefault: a.id === updated.id,
-        }))
-      )
-      setDefaultAliasId(updated.id)
-      toast.success(t("settings.defaultAliasSaved"))
-    } catch (err) {
-      toast.error(isApiError(err) ? err.message : t("aliases.updateFailed"))
-    } finally {
-      setDefaultBusy(false)
-    }
-  }
+  const tabs = [
+    {
+      id: "general" as const,
+      label: t("settings.tabGeneral"),
+      icon: UserCircleIcon,
+    },
+    {
+      id: "security" as const,
+      label: t("settings.tabSecurity"),
+      icon: ShieldCheckIcon,
+    },
+    {
+      id: "mail" as const,
+      label: t("settings.tabMail"),
+      icon: AtIcon,
+    },
+    {
+      id: "tags" as const,
+      label: t("settings.tabTagsFilters"),
+      icon: FunnelIcon,
+    },
+    {
+      id: "apikeys" as const,
+      label: t("settings.tabApiKeys"),
+      icon: KeyIcon,
+    },
+  ]
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
       <PageHeader title={t("settings.title")} />
 
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="mx-auto flex w-full max-w-lg flex-col gap-8 px-4 py-6 sm:px-6">
-          <section className="flex flex-col gap-4">
-            <div>
-              <h2 className="text-sm font-medium">{t("settings.profile")}</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {t("settings.profileHint")}
-              </p>
-            </div>
-
-            <form
-              className="flex flex-col gap-4"
-              onSubmit={form.handleSubmit(onSubmit)}
-            >
-              <FieldGroup>
-                <Field>
-                  <FieldLabel htmlFor="settings-username">
-                    {t("auth.username")}
-                  </FieldLabel>
-                  <Input
-                    id="settings-username"
-                    value={user?.username ?? ""}
-                    disabled
-                    readOnly
-                  />
-                </Field>
-
-                <Field data-invalid={!!form.formState.errors.displayName || undefined}>
-                  <FieldLabel htmlFor="settings-display-name">
-                    {t("auth.displayName")}
-                  </FieldLabel>
-                  <Input
-                    id="settings-display-name"
-                    placeholder={t("auth.optional")}
-                    aria-invalid={!!form.formState.errors.displayName}
-                    {...form.register("displayName")}
-                  />
-                  <FieldDescription>{t("auth.displayNameHint")}</FieldDescription>
-                  <FieldError errors={[form.formState.errors.displayName]} />
-                </Field>
-              </FieldGroup>
-
-              <Button type="submit" className="w-fit" disabled={saving}>
-                {saving ? t("auth.saving") : t("settings.save")}
-              </Button>
-            </form>
-          </section>
-
-          <Separator />
-
-          <section className="flex flex-col gap-4">
-            <div>
-              <h2 className="text-sm font-medium">{t("settings.appearance")}</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {t("settings.appearanceHint")}
-              </p>
-            </div>
-
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="settings-theme">{t("settings.theme")}</FieldLabel>
-                <ThemeSwitcher id="settings-theme" />
-              </Field>
-
-              <Field>
-                <FieldLabel htmlFor="settings-language">
-                  {t("settings.language")}
-                </FieldLabel>
-                <LanguageSwitcher id="settings-language" />
-              </Field>
-            </FieldGroup>
-          </section>
-
-          <Separator />
-
-          <section className="flex flex-col gap-3">
-            <div>
-              <h2 className="text-sm font-medium">{t("settings.security")}</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {t("settings.securityHint")}
-              </p>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-fit"
-              onClick={() => setPasswordOpen(true)}
-            >
-              {t("nav.changePassword")}
-            </Button>
-          </section>
-
-          <Separator />
-
-          <section className="flex flex-col gap-3">
-            <div>
-              <h2 className="text-sm font-medium">{t("settings.mail")}</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {t("settings.mailHint")}
-              </p>
-            </div>
-
-            {aliasesLoading ? (
-              <p className="text-sm text-muted-foreground">{t("app.loading")}</p>
-            ) : enabledAliases.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {t("settings.noEnabledAlias")}
-              </p>
-            ) : (
-              <Field>
-                <FieldLabel htmlFor="settings-default-alias">
-                  {t("settings.defaultAlias")}
-                </FieldLabel>
-                <Select
-                  items={aliasItems}
-                  value={defaultAliasId}
-                  onValueChange={(value) => void setDefaultAlias(value)}
-                  disabled={defaultBusy}
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+        <aside className="shrink-0 px-4 py-2 md:w-56 md:px-3 md:py-4">
+          <nav className="flex flex-row gap-1 overflow-x-auto md:flex-col md:overflow-x-visible">
+            {tabs.map((tab) => {
+              const Icon = tab.icon
+              const isActive = activeTab === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => selectTab(tab.id)}
+                  className={cn(
+                    "flex cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors",
+                    isActive
+                      ? "bg-accent text-accent-foreground shadow-2xs"
+                      : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                  )}
                 >
-                  <SelectTrigger id="settings-default-alias" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {aliasItems.map((item) => (
-                        <SelectItem key={item.value} value={item.value}>
-                          {item.label}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-                <FieldDescription>{t("settings.defaultAliasHint")}</FieldDescription>
-              </Field>
+                  <Icon className="size-4 shrink-0" />
+                  <span>{tab.label}</span>
+                </button>
+              )
+            })}
+          </nav>
+        </aside>
+
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-8">
+            {activeTab === "general" && (
+              <div className="flex flex-col gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <UserCircleIcon className="size-4 text-primary" />
+                      {t("settings.profile")}
+                    </CardTitle>
+                    <CardDescription>
+                      {t("settings.profileHint")}
+                    </CardDescription>
+                  </CardHeader>
+                  <form className="contents" onSubmit={form.handleSubmit(onSubmit)}>
+                    <CardContent>
+                      <FieldGroup>
+                        <Field>
+                          <FieldLabel htmlFor="settings-username">
+                            {t("auth.username")}
+                          </FieldLabel>
+                          <Input
+                            id="settings-username"
+                            value={user?.username ?? ""}
+                            disabled
+                            readOnly
+                          />
+                        </Field>
+
+                        <Field
+                          data-invalid={
+                            !!form.formState.errors.displayName || undefined
+                          }
+                        >
+                          <FieldLabel htmlFor="settings-display-name">
+                            {t("auth.displayName")}
+                          </FieldLabel>
+                          <Input
+                            id="settings-display-name"
+                            placeholder={t("auth.optional")}
+                            aria-invalid={!!form.formState.errors.displayName}
+                            {...form.register("displayName")}
+                          />
+                          <FieldDescription>
+                            {t("auth.displayNameHint")}
+                          </FieldDescription>
+                          <FieldError
+                            errors={[form.formState.errors.displayName]}
+                          />
+                        </Field>
+                      </FieldGroup>
+                    </CardContent>
+                    <CardFooter className="border-t border-border/60 pt-4">
+                      <Button type="submit" disabled={saving}>
+                        {saving ? t("auth.saving") : t("settings.save")}
+                      </Button>
+                    </CardFooter>
+                  </form>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <PaletteIcon className="size-4 text-primary" />
+                      {t("settings.appearance")}
+                    </CardTitle>
+                    <CardDescription>
+                      {t("settings.appearanceHint")}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <FieldGroup>
+                      <Field>
+                        <FieldLabel htmlFor="settings-theme">
+                          {t("settings.theme")}
+                        </FieldLabel>
+                        <ThemeSwitcher id="settings-theme" />
+                      </Field>
+
+                      <Field>
+                        <FieldLabel htmlFor="settings-language">
+                          {t("settings.language")}
+                        </FieldLabel>
+                        <LanguageSwitcher id="settings-language" />
+                      </Field>
+                    </FieldGroup>
+                  </CardContent>
+                </Card>
+              </div>
             )}
 
-            <Button
-              type="button"
-              variant="outline"
-              className="w-fit"
-              render={<Link to="/aliases" />}
-              nativeButton={false}
-            >
-              {t("nav.aliases")}
-            </Button>
-          </section>
+            {activeTab === "security" && (
+              <div className="flex flex-col gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <ShieldCheckIcon className="size-4 text-primary" />
+                      {t("settings.security")}
+                    </CardTitle>
+                    <CardDescription>
+                      {t("settings.securityHint")}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex flex-col gap-3">
+                    <p className="text-xs text-muted-foreground">
+                      账号密码用于保护管理控制台的安全。建议使用高强度的专属密码。
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-fit"
+                      onClick={() => setPasswordOpen(true)}
+                    >
+                      <KeyIcon data-icon="inline-start" />
+                      {t("nav.changePassword")}
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
 
-          <Separator />
+            {activeTab === "mail" && (
+              <AliasesSettings
+                aliases={aliases}
+                loading={aliasesLoading}
+                onAliasesChange={setAliases}
+              />
+            )}
 
-          <TagsFiltersSettings aliases={aliases} />
+            {activeTab === "tags" && <TagsFiltersSettings aliases={aliases} />}
 
-          <ApiKeysSettings aliases={aliases} />
-        </div>
-      </ScrollArea>
+            {activeTab === "apikeys" && <ApiKeysSettings aliases={aliases} />}
+          </div>
+        </ScrollArea>
+      </div>
 
       <ChangePasswordDialog
         open={passwordOpen}

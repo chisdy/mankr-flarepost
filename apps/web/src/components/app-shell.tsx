@@ -1,5 +1,4 @@
 import {
-  AtIcon,
   EnvelopeIcon,
   EnvelopeOpenIcon,
   GearIcon,
@@ -123,15 +122,6 @@ function SidebarNav({ onNavigate, tags }: SidebarNavProps) {
       ) : null}
 
       <Separator />
-
-      <NavLink
-        to="/aliases"
-        onClick={onNavigate}
-        className={({ isActive }) => navClassName(isActive)}
-      >
-        <AtIcon />
-        {t("nav.aliases")}
-      </NavLink>
 
       <NavLink
         to="/settings"

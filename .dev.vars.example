@@ -6,3 +6,7 @@ COOKIES_SECRET=replace-with-openssl-rand-hex-32
 
 # Required for outbound mail (https://resend.com — free tier, no credit card)
 RESEND_API_KEY=
+
+# Required: your mail domain, without `@` (aliases become local@EMAIL_DOMAIN).
+# In production this lives in the dashboard, not in wrangler.toml.
+EMAIL_DOMAIN=example.com

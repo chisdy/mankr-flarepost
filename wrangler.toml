@@ -4,7 +4,9 @@
 #
 # After first deploy / one-click:
 #   1. Set secrets: COOKIES_SECRET and RESEND_API_KEY (both required)
-#   2. Set var: EMAIL_DOMAIN
+#   2. Set var EMAIL_DOMAIN in the dashboard (Settings → Variables and Secrets),
+#      or in .dev.vars for local dev. It is deliberately not declared here: this
+#      is a public repo, and a domain baked into [vars] would follow every fork.
 #   3. Email Routing → catch-all or per-alias → this Worker
 #   4. Open /setup to create the admin user
 #
@@ -18,6 +20,10 @@ name = "mankr-flarepost"
 main = "apps/worker/src/index.ts"
 compatibility_date = "2026-07-25"
 compatibility_flags = ["nodejs_compat"]
+
+# Without this, `wrangler deploy` deletes plain-text vars it cannot see in this
+# file — including the dashboard-managed EMAIL_DOMAIN.
+keep_vars = true
 
 [[d1_databases]]
 binding = "DB"
@@ -37,7 +43,3 @@ directory = "apps/web/dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
 run_worker_first = ["/api/*"]
-
-[vars]
-# Your mail domain (aliases become local@EMAIL_DOMAIN)
-EMAIL_DOMAIN = "example.com"

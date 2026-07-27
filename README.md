@@ -51,8 +51,10 @@ corepack enable
 corepack prepare pnpm@11.17.0 --activate
 pnpm install
 pnpm db:migrate:local
-# 可选：写入演示别名与邮件（需已有 users；会清空 aliases/messages）
+# 可选：写入演示数据（别名 / 标签 / 过滤器 / 约 110 封邮件 / API Key）
+# 地址取 .dev.vars 里的 EMAIL_DOMAIN；会清空除 users 外的业务表
 pnpm db:seed:local
+pnpm db:seed:local --admin   # 顺带创建 admin / admin12345，跳过 /setup
 # 复制 .dev.vars.example → .dev.vars，填入 COOKIES_SECRET 等
 pnpm start   # 一键启动前端 Vite + 后端 Worker（等同 pnpm dev）
 ```

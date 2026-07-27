@@ -14,6 +14,11 @@ import { toast } from "sonner"
 import { PageHeader } from "@/components/page-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -34,7 +39,7 @@ export function MessageView() {
   const [allTags, setAllTags] = useState<Tag[]>([])
   const [loading, setLoading] = useState(true)
   const [acting, setActing] = useState(false)
-  const [editingTags, setEditingTags] = useState(false)
+  const [tagsOpen, setTagsOpen] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -282,45 +287,57 @@ export function MessageView() {
                 </Badge>
               ))}
               {message.folder !== "draft" ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="xs"
-                  disabled={acting || allTags.length === 0}
-                  onClick={() => setEditingTags((v) => !v)}
-                >
-                  {editingTags ? t("app.cancel") : t("message.editTags")}
-                </Button>
+                <Popover open={tagsOpen} onOpenChange={setTagsOpen}>
+                  <PopoverTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        disabled={acting}
+                      />
+                    }
+                  >
+                    {t("message.editTags")}
+                  </PopoverTrigger>
+                  <PopoverContent
+                    align="start"
+                    className="w-auto min-w-48 max-w-xs gap-2 p-3"
+                  >
+                    {allTags.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        {t("message.noTagsYet")}{" "}
+                        <Link
+                          to="/settings"
+                          className="underline"
+                          onClick={() => setTagsOpen(false)}
+                        >
+                          {t("nav.settings")}
+                        </Link>
+                      </p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {allTags.map((tag) => {
+                          const active = message.tags.some((x) => x.id === tag.id)
+                          return (
+                            <Button
+                              key={tag.id}
+                              type="button"
+                              size="xs"
+                              variant={active ? "default" : "outline"}
+                              disabled={acting}
+                              onClick={() => void toggleTag(tag.id)}
+                            >
+                              {tag.name}
+                            </Button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </PopoverContent>
+                </Popover>
               ) : null}
             </div>
-
-            {editingTags ? (
-              <div className="flex flex-wrap gap-2 rounded-2xl border border-border p-3">
-                {allTags.map((tag) => {
-                  const active = message.tags.some((x) => x.id === tag.id)
-                  return (
-                    <Button
-                      key={tag.id}
-                      type="button"
-                      size="xs"
-                      variant={active ? "default" : "outline"}
-                      disabled={acting}
-                      onClick={() => void toggleTag(tag.id)}
-                    >
-                      {tag.name}
-                    </Button>
-                  )
-                })}
-                {allTags.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    {t("message.noTagsYet")}{" "}
-                    <Link to="/settings" className="underline">
-                      {t("nav.settings")}
-                    </Link>
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
           </div>
 
           {message.hasUnsupportedAttachments ? (

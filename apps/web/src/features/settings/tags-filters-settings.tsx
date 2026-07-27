@@ -1,8 +1,26 @@
+import { FunnelIcon, PlusIcon, TagIcon, TrashIcon, PencilSimpleIcon } from "@phosphor-icons/react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   Field,
   FieldDescription,
@@ -18,7 +36,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Separator } from "@/components/ui/separator"
 import { api, isApiError } from "@/lib/api"
 import type { Alias, FilterCondition, FilterRule, Tag } from "@/lib/types"
 
@@ -50,6 +67,8 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
   const [tagColor, setTagColor] = useState(TAG_COLORS[0]!)
   const [busy, setBusy] = useState(false)
 
+  // Filter Form state in Dialog
+  const [filterDialogOpen, setFilterDialogOpen] = useState(false)
   const [filterName, setFilterName] = useState("")
   const [matchMode, setMatchMode] = useState<"and" | "or">("and")
   const [priority, setPriority] = useState(0)
@@ -72,6 +91,7 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
 
   useEffect(() => {
     let cancelled = false
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch on mount / locale change
     setLoading(true)
     reload()
       .catch((err) => {
@@ -93,7 +113,7 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
     try {
       await api("/api/tags", {
         method: "POST",
-        body: JSON.stringify({ name: tagName, color: tagColor }),
+        body: JSON.stringify({ name: tagName.trim(), color: tagColor }),
       })
       setTagName("")
       toast.success(t("settings.tagCreated"))
@@ -130,6 +150,11 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
     setActionTagIds([])
   }
 
+  function openCreateFilter() {
+    resetFilterForm()
+    setFilterDialogOpen(true)
+  }
+
   function loadFilterIntoForm(filter: FilterRule) {
     setEditingId(filter.id)
     setFilterName(filter.name)
@@ -143,6 +168,7 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
     setActionStar(Boolean(filter.actions.setStarred))
     setActionTrash(Boolean(filter.actions.moveToTrash))
     setActionTagIds(filter.actions.addTagIds ?? [])
+    setFilterDialogOpen(true)
   }
 
   function updateCondition(
@@ -196,6 +222,7 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
         })
         toast.success(t("settings.filterCreated"))
       }
+      setFilterDialogOpen(false)
       resetFilterForm()
       await reload()
     } catch (err) {
@@ -255,356 +282,438 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
   ]
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground">{t("app.loading")}</p>
+    return <p className="text-sm text-muted-foreground py-4">{t("app.loading")}</p>
   }
 
   return (
-    <>
-      <section className="flex flex-col gap-4">
-        <div>
-          <h2 className="text-sm font-medium">{t("settings.tagsSection")}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t("settings.tagsHint")}
-          </p>
-        </div>
+    <div className="flex flex-col gap-6">
+      {/* 标签管理卡片 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TagIcon className="size-4 text-primary" />
+            {t("settings.tagsSection")}
+          </CardTitle>
+          <CardDescription>{t("settings.tagsHint")}</CardDescription>
+        </CardHeader>
 
-        <div className="flex flex-wrap gap-2">
-          <Input
-            value={tagName}
-            onChange={(e) => setTagName(e.target.value)}
-            placeholder={t("settings.tagNamePlaceholder")}
-            className="max-w-xs"
-          />
-          <Select
-            items={TAG_COLORS.map((c) => ({ value: c, label: c }))}
-            value={tagColor}
-            onValueChange={(v) => v && setTagColor(v)}
-          >
-            <SelectTrigger className="w-28">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {TAG_COLORS.map((c) => (
-                  <SelectItem key={c} value={c}>
-                    <span className="flex items-center gap-2">
-                      <span
-                        className="inline-block size-3 rounded-full"
-                        style={{ backgroundColor: c }}
-                      />
-                      {c}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-          <Button type="button" disabled={busy} onClick={() => void createTag()}>
-            {t("settings.addTag")}
-          </Button>
-        </div>
+        <CardContent className="flex flex-col gap-5">
+          {/* 新增标签工具栏 */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              value={tagName}
+              onChange={(e) => setTagName(e.target.value)}
+              placeholder={t("settings.tagNamePlaceholder")}
+              className="max-w-xs"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault()
+                  void createTag()
+                }
+              }}
+            />
+            <Select
+              items={TAG_COLORS.map((c) => ({ value: c, label: c }))}
+              value={tagColor}
+              onValueChange={(v) => v && setTagColor(v)}
+            >
+              <SelectTrigger className="w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {TAG_COLORS.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="inline-block size-3 rounded-full"
+                          style={{ backgroundColor: c }}
+                        />
+                        {c}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              disabled={busy || !tagName.trim()}
+              onClick={() => void createTag()}
+            >
+              <PlusIcon data-icon="inline-start" />
+              {t("settings.addTag")}
+            </Button>
+          </div>
 
-        <ul className="flex flex-col gap-2">
+          {/* 标签列表 */}
           {tags.length === 0 ? (
-            <li className="text-sm text-muted-foreground">{t("settings.noTags")}</li>
+            <p className="text-sm text-muted-foreground">{t("settings.noTags")}</p>
           ) : (
-            tags.map((tag) => (
-              <li
-                key={tag.id}
-                className="flex items-center justify-between gap-3 rounded-2xl border border-border px-3 py-2"
-              >
-                <span className="flex items-center gap-2 text-sm">
+            <div className="flex flex-wrap gap-2 pt-1">
+              {tags.map((tag) => (
+                <div
+                  key={tag.id}
+                  className="group inline-flex items-center gap-2 rounded-xl border border-border/80 bg-card px-3 py-1.5 text-sm shadow-2xs transition-colors hover:border-border"
+                >
                   <span
-                    className="inline-block size-3 rounded-full"
+                    className="size-2.5 rounded-full shrink-0"
                     style={{
                       backgroundColor: isSafeHexColor(tag.color)
                         ? tag.color
                         : "#94a3b8",
                     }}
                   />
-                  {tag.name}
-                </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={busy}
-                  onClick={() => void removeTag(tag.id)}
-                >
-                  {t("settings.delete")}
-                </Button>
-              </li>
-            ))
-          )}
-        </ul>
-      </section>
-
-      <Separator />
-
-      <section className="flex flex-col gap-4">
-        <div>
-          <h2 className="text-sm font-medium">{t("settings.filtersSection")}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t("settings.filtersHint")}
-          </p>
-        </div>
-
-        <FieldGroup>
-          <Field>
-            <FieldLabel>{t("settings.filterName")}</FieldLabel>
-            <Input
-              value={filterName}
-              onChange={(e) => setFilterName(e.target.value)}
-            />
-          </Field>
-          <Field>
-            <FieldLabel>{t("settings.matchMode")}</FieldLabel>
-            <Select
-              items={matchModeItems}
-              value={matchMode}
-              onValueChange={(v) => v && setMatchMode(v as "and" | "or")}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {matchModeItems.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field>
-            <FieldLabel>{t("settings.priority")}</FieldLabel>
-            <Input
-              type="number"
-              value={priority}
-              onChange={(e) => setPriority(Number(e.target.value) || 0)}
-            />
-            <FieldDescription>{t("settings.priorityHint")}</FieldDescription>
-          </Field>
-          <Field>
-            <FieldLabel>{t("settings.conditions")}</FieldLabel>
-            <div className="flex flex-col gap-3">
-              {conditions.map((cond) => (
-                <div
-                  key={cond.key}
-                  className="flex flex-col gap-2 rounded-2xl border border-border p-3 sm:flex-row sm:items-center"
-                >
-                  <Select
-                    items={conditionItems}
-                    value={cond.type}
-                    onValueChange={(v) =>
-                      v &&
-                      updateCondition(cond.key, {
-                        type: v as FilterCondition["type"],
-                        value: v === "to_alias_id" ? "" : cond.value,
-                      })
-                    }
+                  <span className="font-medium text-foreground">{tag.name}</span>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void removeTag(tag.id)}
+                    className="ml-1 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
+                    title={t("settings.delete")}
                   >
-                    <SelectTrigger className="sm:w-48">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        {conditionItems.map((item) => (
-                          <SelectItem key={item.value} value={item.value}>
-                            {item.label}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                  {cond.type === "to_alias_id" ? (
+                    <TrashIcon className="size-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 过滤器卡片 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FunnelIcon className="size-4 text-primary" />
+            {t("settings.filtersSection")}
+          </CardTitle>
+          <CardDescription>{t("settings.filtersHint")}</CardDescription>
+          <CardAction>
+            <Button type="button" onClick={openCreateFilter}>
+              <PlusIcon data-icon="inline-start" />
+              {t("settings.createFilter")}
+            </Button>
+          </CardAction>
+        </CardHeader>
+
+        <CardContent>
+          {filters.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-8 text-center">
+              <p className="text-sm text-muted-foreground">{t("settings.noFilters")}</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-3"
+                onClick={openCreateFilter}
+              >
+                <PlusIcon data-icon="inline-start" />
+                {t("settings.createFilter")}
+              </Button>
+            </div>
+          ) : (
+            <ul className="flex flex-col divide-y divide-border/60">
+              {filters.map((filter) => (
+                <li
+                  key={filter.id}
+                  className="flex flex-col gap-2 py-3.5 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm text-foreground">
+                        {filter.name}
+                      </span>
+                      <Badge variant="outline" className="font-mono text-[10px]">
+                        P{filter.priority}
+                      </Badge>
+                      {!filter.enabled ? (
+                        <Badge variant="secondary" className="text-[10px]">
+                          {t("settings.disabled")}
+                        </Badge>
+                      ) : null}
+                    </div>
+
+                    <p className="text-xs text-muted-foreground truncate">
+                      <span className="font-mono uppercase font-semibold text-[11px] text-foreground/70">
+                        {filter.matchMode}
+                      </span>{" "}
+                      ·{" "}
+                      {filter.conditions
+                        .map((c) => `${c.type.replace("_contains", "")}: ${c.value}`)
+                        .join(", ")}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled={busy}
+                      onClick={() => void toggleFilterEnabled(filter)}
+                    >
+                      {filter.enabled
+                        ? t("settings.disable")
+                        : t("settings.enable")}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled={busy}
+                      onClick={() => loadFilterIntoForm(filter)}
+                    >
+                      <PencilSimpleIcon className="size-3.5" />
+                      {t("settings.edit")}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled={busy}
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => void removeFilter(filter.id)}
+                    >
+                      <TrashIcon className="size-3.5" />
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 过滤器编辑/新建 Dialog 弹窗 */}
+      <Dialog open={filterDialogOpen} onOpenChange={setFilterDialogOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>
+              {editingId
+                ? t("settings.editFilterTitle")
+                : t("settings.createFilterTitle")}
+            </DialogTitle>
+            <DialogDescription>{t("settings.createFilterHint")}</DialogDescription>
+          </DialogHeader>
+
+          <FieldGroup className="py-2">
+            <Field>
+              <FieldLabel>{t("settings.filterName")}</FieldLabel>
+              <Input
+                value={filterName}
+                onChange={(e) => setFilterName(e.target.value)}
+                placeholder="e.g. GitHub Notifications"
+              />
+            </Field>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field>
+                <FieldLabel>{t("settings.matchMode")}</FieldLabel>
+                <Select
+                  items={matchModeItems}
+                  value={matchMode}
+                  onValueChange={(v) => v && setMatchMode(v as "and" | "or")}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {matchModeItems.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
+
+              <Field>
+                <FieldLabel>{t("settings.priority")}</FieldLabel>
+                <Input
+                  type="number"
+                  value={priority}
+                  onChange={(e) => setPriority(Number(e.target.value) || 0)}
+                />
+                <FieldDescription>{t("settings.priorityHint")}</FieldDescription>
+              </Field>
+            </div>
+
+            <Field>
+              <FieldLabel>{t("settings.conditions")}</FieldLabel>
+              <div className="flex flex-col gap-2.5">
+                {conditions.map((cond) => (
+                  <div
+                    key={cond.key}
+                    className="flex items-center gap-2"
+                  >
                     <Select
-                      items={aliases.map((a) => ({
-                        value: a.id,
-                        label: a.address,
-                      }))}
-                      value={cond.value || null}
+                      items={conditionItems}
+                      value={cond.type}
                       onValueChange={(v) =>
-                        v && updateCondition(cond.key, { value: v })
+                        v &&
+                        updateCondition(cond.key, {
+                          type: v as FilterCondition["type"],
+                          value: v === "to_alias_id" ? "" : cond.value,
+                        })
                       }
                     >
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder={t("settings.selectAlias")} />
+                      <SelectTrigger className="w-40 shrink-0">
+                        <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectGroup>
-                          {aliases.map((a) => (
-                            <SelectItem key={a.id} value={a.id}>
-                              {a.address}
+                          {conditionItems.map((item) => (
+                            <SelectItem key={item.value} value={item.value}>
+                              {item.label}
                             </SelectItem>
                           ))}
                         </SelectGroup>
                       </SelectContent>
                     </Select>
-                  ) : (
-                    <Input
-                      className="flex-1"
-                      value={cond.value}
-                      onChange={(e) =>
-                        updateCondition(cond.key, { value: e.target.value })
-                      }
-                      placeholder={t("settings.conditionValue")}
-                    />
-                  )}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={conditions.length <= 1}
-                    onClick={() =>
-                      setConditions((prev) =>
-                        prev.filter((c) => c.key !== cond.key)
-                      )
-                    }
-                  >
-                    {t("settings.removeCondition")}
-                  </Button>
-                </div>
-              ))}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="w-fit"
-                onClick={() =>
-                  setConditions((prev) => [...prev, newConditionDraft()])
-                }
-              >
-                {t("settings.addCondition")}
-              </Button>
-            </div>
-          </Field>
-          <Field>
-            <FieldLabel>{t("settings.actions")}</FieldLabel>
-            <div className="flex flex-col gap-2">
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={actionStar}
-                  onChange={(e) => setActionStar(e.target.checked)}
-                />
-                {t("settings.actionStar")}
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={actionTrash}
-                  onChange={(e) => setActionTrash(e.target.checked)}
-                />
-                {t("settings.actionTrash")}
-              </label>
-              {tags.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {tags.map((tag) => {
-                    const active = actionTagIds.includes(tag.id)
-                    return (
-                      <Button
-                        key={tag.id}
-                        type="button"
-                        size="sm"
-                        variant={active ? "default" : "outline"}
-                        onClick={() =>
-                          setActionTagIds((prev) =>
-                            active
-                              ? prev.filter((x) => x !== tag.id)
-                              : [...prev, tag.id]
-                          )
+
+                    {cond.type === "to_alias_id" ? (
+                      <Select
+                        items={aliases.map((a) => ({
+                          value: a.id,
+                          label: a.address,
+                        }))}
+                        value={cond.value || null}
+                        onValueChange={(v) =>
+                          v && updateCondition(cond.key, { value: v })
                         }
                       >
-                        {tag.name}
-                      </Button>
-                    )
-                  })}
-                </div>
-              ) : null}
-            </div>
-          </Field>
-        </FieldGroup>
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder={t("settings.selectAlias")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            {aliases.map((a) => (
+                              <SelectItem key={a.id} value={a.id}>
+                                {a.address}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        className="flex-1"
+                        value={cond.value}
+                        onChange={(e) =>
+                          updateCondition(cond.key, { value: e.target.value })
+                        }
+                        placeholder={t("settings.conditionValue")}
+                      />
+                    )}
 
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" disabled={busy} onClick={() => void saveFilter()}>
-            {editingId ? t("settings.updateFilter") : t("settings.addFilter")}
-          </Button>
-          {editingId ? (
-            <Button type="button" variant="outline" onClick={resetFilterForm}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled={conditions.length <= 1}
+                      onClick={() =>
+                        setConditions((prev) =>
+                          prev.filter((c) => c.key !== cond.key)
+                        )
+                      }
+                    >
+                      <TrashIcon className="size-3.5" />
+                    </Button>
+                  </div>
+                ))}
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-fit mt-1"
+                  onClick={() =>
+                    setConditions((prev) => [...prev, newConditionDraft()])
+                  }
+                >
+                  <PlusIcon data-icon="inline-start" />
+                  {t("settings.addCondition")}
+                </Button>
+              </div>
+            </Field>
+
+            <Field>
+              <FieldLabel>{t("settings.actions")}</FieldLabel>
+              <div className="flex flex-col gap-2.5 rounded-xl border border-border p-3">
+                <div className="flex items-center gap-6">
+                  <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="rounded border-border"
+                      checked={actionStar}
+                      onChange={(e) => setActionStar(e.target.checked)}
+                    />
+                    {t("settings.actionStar")}
+                  </label>
+                  <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="rounded border-border"
+                      checked={actionTrash}
+                      onChange={(e) => setActionTrash(e.target.checked)}
+                    />
+                    {t("settings.actionTrash")}
+                  </label>
+                </div>
+
+                {tags.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    <span className="text-xs text-muted-foreground w-full">
+                      {t("nav.tags")}：
+                    </span>
+                    {tags.map((tag) => {
+                      const active = actionTagIds.includes(tag.id)
+                      return (
+                        <Button
+                          key={tag.id}
+                          type="button"
+                          size="sm"
+                          variant={active ? "default" : "outline"}
+                          className="h-7 text-xs"
+                          onClick={() =>
+                            setActionTagIds((prev) =>
+                              active
+                                ? prev.filter((x) => x !== tag.id)
+                                : [...prev, tag.id]
+                            )
+                          }
+                        >
+                          {tag.name}
+                        </Button>
+                      )
+                    })}
+                  </div>
+                ) : null}
+              </div>
+            </Field>
+          </FieldGroup>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setFilterDialogOpen(false)}
+            >
               {t("app.cancel")}
             </Button>
-          ) : null}
-        </div>
-
-        <ul className="flex flex-col gap-2">
-          {filters.length === 0 ? (
-            <li className="text-sm text-muted-foreground">
-              {t("settings.noFilters")}
-            </li>
-          ) : (
-            filters.map((filter) => (
-              <li
-                key={filter.id}
-                className="flex flex-col gap-2 rounded-2xl border border-border px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="min-w-0 text-sm">
-                  <p className="font-medium">
-                    {filter.name}{" "}
-                    <span className="text-muted-foreground">
-                      (P{filter.priority})
-                    </span>
-                    {!filter.enabled ? (
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        {t("settings.disabled")}
-                      </span>
-                    ) : null}
-                  </p>
-                  <p className="truncate text-muted-foreground">
-                    {filter.matchMode.toUpperCase()} ·{" "}
-                    {filter.conditions
-                      .map((c) => `${c.type}:${c.value}`)
-                      .join(", ")}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={busy}
-                    onClick={() => void toggleFilterEnabled(filter)}
-                  >
-                    {filter.enabled
-                      ? t("settings.disable")
-                      : t("settings.enable")}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={busy}
-                    onClick={() => loadFilterIntoForm(filter)}
-                  >
-                    {t("settings.edit")}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    disabled={busy}
-                    onClick={() => void removeFilter(filter.id)}
-                  >
-                    {t("settings.delete")}
-                  </Button>
-                </div>
-              </li>
-            ))
-          )}
-        </ul>
-      </section>
-    </>
+            <Button
+              type="button"
+              disabled={busy}
+              onClick={() => void saveFilter()}
+            >
+              {editingId ? t("settings.updateFilter") : t("settings.addFilter")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   )
 }

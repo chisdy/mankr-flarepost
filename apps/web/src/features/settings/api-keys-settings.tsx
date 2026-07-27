@@ -1,8 +1,18 @@
+import { KeyIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -26,7 +36,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Separator } from "@/components/ui/separator"
 import { api, isApiError } from "@/lib/api"
 import type { Alias, ApiKey } from "@/lib/types"
 
@@ -58,7 +67,6 @@ export function ApiKeysSettings({ aliases }: { aliases: Alias[] }) {
 
   useEffect(() => {
     let cancelled = false
-    // Same mount-load pattern as TagsFiltersSettings; the rule flags setState via reload().
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch on mount / locale change
     void reload()
       .catch((err) => {
@@ -159,56 +167,87 @@ export function ApiKeysSettings({ aliases }: { aliases: Alias[] }) {
 
   return (
     <>
-      <Separator />
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <KeyIcon className="size-4 text-primary" />
+            {t("apiKeys.title")}
+          </CardTitle>
+          <CardDescription>
+            {t("apiKeys.hint")} {t("apiKeys.resendRequired")}
+          </CardDescription>
+          <CardAction>
+            <Button
+              type="button"
+              disabled={busy || enabledAliases.length === 0}
+              onClick={openCreate}
+            >
+              <PlusIcon data-icon="inline-start" />
+              {t("apiKeys.create")}
+            </Button>
+          </CardAction>
+        </CardHeader>
 
-      <section className="flex flex-col gap-4">
-        <div>
-          <h2 className="text-sm font-medium">{t("apiKeys.title")}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t("apiKeys.hint")}
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t("apiKeys.resendRequired")}
-          </p>
-        </div>
-
-        {loading ? (
-          <p className="text-sm text-muted-foreground">{t("app.loading")}</p>
-        ) : keys.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t("apiKeys.empty")}</p>
-        ) : (
-          <ul className="flex flex-col gap-3">
-            {keys.map((key) => (
-              <li
-                key={key.id}
-                className="flex flex-col gap-2 border-b border-border/60 pb-3 last:border-0"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">
-                      {key.name}
+        <CardContent>
+          {loading ? (
+            <p className="text-sm text-muted-foreground py-4">{t("app.loading")}</p>
+          ) : keys.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-8 text-center">
+              <p className="text-sm text-muted-foreground">{t("apiKeys.empty")}</p>
+              {enabledAliases.length === 0 ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {t("apiKeys.needAlias")}
+                </p>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={openCreate}
+                >
+                  <PlusIcon data-icon="inline-start" />
+                  {t("apiKeys.create")}
+                </Button>
+              )}
+            </div>
+          ) : (
+            <ul className="flex flex-col divide-y divide-border/60">
+              {keys.map((key) => (
+                <li
+                  key={key.id}
+                  className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm text-foreground">
+                        {key.name}
+                      </span>
+                      <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+                        {key.keyPrefix}…
+                      </code>
                       {!key.enabled ? (
-                        <span className="ml-2 text-xs font-normal text-muted-foreground">
+                        <Badge variant="secondary" className="text-[10px]">
                           {t("settings.disabled")}
-                        </span>
+                        </Badge>
                       ) : null}
-                    </p>
-                    <p className="mt-0.5 font-mono text-xs text-muted-foreground">
-                      {key.keyPrefix}…
-                    </p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {t("apiKeys.fromAlias", { address: key.aliasAddress })}
-                      {!key.aliasEnabled
-                        ? ` · ${t("apiKeys.aliasDisabled")}`
-                        : ""}
-                    </p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {t("apiKeys.limits", {
-                        hourly: key.hourlyLimit,
-                        daily: key.dailyLimit,
-                      })}
-                    </p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                      <span>
+                        {t("apiKeys.fromAlias", { address: key.aliasAddress })}
+                        {!key.aliasEnabled ? ` (${t("apiKeys.aliasDisabled")})` : ""}
+                      </span>
+                      <span>·</span>
+                      <span className="font-mono">
+                        {t("apiKeys.limits", {
+                          hourly: key.hourlyLimit,
+                          daily: key.dailyLimit,
+                        })}
+                      </span>
+                    </div>
+
+                    <p className="text-[11px] font-mono text-muted-foreground/80">
                       {t("apiKeys.usage", {
                         sent24h: key.usage.sent24h,
                         failed24h: key.usage.failed24h,
@@ -217,7 +256,8 @@ export function ApiKeysSettings({ aliases }: { aliases: Alias[] }) {
                       })}
                     </p>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+
+                  <div className="flex items-center gap-2 shrink-0">
                     <Button
                       type="button"
                       variant="outline"
@@ -229,35 +269,21 @@ export function ApiKeysSettings({ aliases }: { aliases: Alias[] }) {
                     </Button>
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
                       disabled={busy}
+                      className="text-destructive hover:text-destructive"
                       onClick={() => setDeleteTarget(key)}
                     >
-                      {t("settings.delete")}
+                      <TrashIcon className="size-3.5" />
                     </Button>
                   </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <Button
-          type="button"
-          variant="outline"
-          className="w-fit"
-          disabled={busy || enabledAliases.length === 0}
-          onClick={openCreate}
-        >
-          {t("apiKeys.create")}
-        </Button>
-        {enabledAliases.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            {t("apiKeys.needAlias")}
-          </p>
-        ) : null}
-      </section>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>
@@ -299,33 +325,35 @@ export function ApiKeysSettings({ aliases }: { aliases: Alias[] }) {
               </Select>
               <FieldDescription>{t("apiKeys.aliasHint")}</FieldDescription>
             </Field>
-            <Field>
-              <FieldLabel htmlFor="api-key-hourly">
-                {t("apiKeys.hourlyLimit")}
-              </FieldLabel>
-              <Input
-                id="api-key-hourly"
-                type="number"
-                min={1}
-                max={10000}
-                value={hourlyLimit}
-                onChange={(e) => setHourlyLimit(e.target.value)}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="api-key-daily">
-                {t("apiKeys.dailyLimit")}
-              </FieldLabel>
-              <Input
-                id="api-key-daily"
-                type="number"
-                min={1}
-                max={10000}
-                value={dailyLimit}
-                onChange={(e) => setDailyLimit(e.target.value)}
-              />
-              <FieldDescription>{t("apiKeys.softQuotaHint")}</FieldDescription>
-            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field>
+                <FieldLabel htmlFor="api-key-hourly">
+                  {t("apiKeys.hourlyLimit")}
+                </FieldLabel>
+                <Input
+                  id="api-key-hourly"
+                  type="number"
+                  min={1}
+                  max={10000}
+                  value={hourlyLimit}
+                  onChange={(e) => setHourlyLimit(e.target.value)}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="api-key-daily">
+                  {t("apiKeys.dailyLimit")}
+                </FieldLabel>
+                <Input
+                  id="api-key-daily"
+                  type="number"
+                  min={1}
+                  max={10000}
+                  value={dailyLimit}
+                  onChange={(e) => setDailyLimit(e.target.value)}
+                />
+              </Field>
+            </div>
+            <p className="text-xs text-muted-foreground">{t("apiKeys.softQuotaHint")}</p>
           </FieldGroup>
           <DialogFooter>
             <Button

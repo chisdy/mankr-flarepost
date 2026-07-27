@@ -43,7 +43,7 @@ function disableTransitionsTemporarily() {
   const style = document.createElement("style")
   style.appendChild(
     document.createTextNode(
-      "*,*::before,*::after{-webkit-transition:none!important;transition:none!important}"
+      "*:not(.segmented-indicator):not([data-slot='toggle-group-slider']):not([data-slot='tabs-indicator']),*:not(.segmented-indicator):not([data-slot='toggle-group-slider']):not([data-slot='tabs-indicator'])::before,*:not(.segmented-indicator):not([data-slot='toggle-group-slider']):not([data-slot='tabs-indicator'])::after{-webkit-transition:none!important;transition:none!important}"
     )
   )
   document.head.appendChild(style)

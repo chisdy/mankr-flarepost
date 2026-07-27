@@ -447,7 +447,7 @@ export function ComposeView() {
               type="button"
               variant="outline"
               className="w-fit"
-              onClick={() => navigate("/aliases")}
+              onClick={() => navigate("/settings?tab=mail")}
             >
               {t("compose.manageAliases")}
             </Button>

@@ -1,195 +1,335 @@
-# Mankr Flarepost 部署指南
+# Mankr Flarepost 手动部署指南
 
-本文覆盖一键部署、手工 pnpm 路径、部署后清单，以及 Total Free 发信渠道说明。
+从零到能收发信的完整步骤。全程不需要绑定信用卡。
+
+按顺序做完 11 步即可；每一步都标注了「在哪里设置」和「怎么验证这步成功了」。
+
+> 关于 README 里的 Deploy to Cloudflare 按钮：它会把本仓库**克隆成一个新仓库**再接 CI，之后你往原仓库推的代码不会生效。那个按钮是给别人一键拿走用的，你自己发版请走本文的手动路径。
+
+---
+
+## 变量速查表
+
+三个配置项，**都在 Cloudflare 侧设置，仓库里一个都不存**：
+
+| 名称 | 类型 | 设置位置 | 说明 |
+|------|------|----------|------|
+| `EMAIL_DOMAIN` | 明文变量 | Dashboard（或 `wrangler secret put` 之外的 Text 类型） | 你的邮件域名，别名后缀 |
+| `COOKIES_SECRET` | Secret | `wrangler secret put` 或 Dashboard | 会话签名密钥 |
+| `RESEND_API_KEY` | Secret | `wrangler secret put` 或 Dashboard | 发信凭证 |
+
+三个值都由 **步骤 6** 统一设置，`wrangler.toml` 里不含任何一个——这是公开仓库，域名写进 `[vars]` 会跟着每个 fork 跑。仓库里有 `keep_vars = true`，所以 `wrangler deploy` 不会覆盖你在 Dashboard 里设的明文变量（Secret 本来就不会被覆盖）。
+
+本地开发是另一套：三个值都写在 `.dev.vars` 里，该文件已被 gitignore。
+
+---
 
 ## 前提条件
 
-| 项 | 说明 |
+| 项 | 要求 |
 |----|------|
-| Cloudflare 账号 | 免费账号即可；**不必**绑定信用卡即可跑通 Total Free 路径 |
-| 域名 DNS | 域名托管在 Cloudflare DNS（Email Routing 依赖） |
-| Node.js | ≥ **22.12**（手工路径） |
-| pnpm | 经 **Corepack**；仓库 `packageManager` 钉扎 `pnpm@11.17.0` |
+| Cloudflare 账号 | 免费账号即可，**不需要**绑卡 |
+| 域名 | DNS 必须托管在 Cloudflare（Email Routing 依赖） |
+| Resend 账号 | 免费层，[resend.com](https://resend.com) 注册，不需要绑卡 |
+| Node.js | ≥ 22.12 |
+| pnpm | 11.17.0（仓库 `packageManager` 已钉扎） |
+
+---
+
+## 步骤 1：准备本地环境
 
 ```bash
 corepack enable
 corepack prepare pnpm@11.17.0 --activate
-```
-
-## 能力边界（部署前请知悉）
-
-- **单用户**：一个管理员账号
-- **单域名**：`EMAIL_DOMAIN` 指向你的域名
-- **别名上限**：5 个
-- **附件**：**不支持**。Cloudflare 要求账号绑定支付方式才能开通 R2，为守住「零信用卡」这条线，本项目不接对象存储；含附件的来信只保留正文，详情页会提示
-- **发信**：见下文 [Total Free 发信说明](#total-free-发信说明)
-
----
-
-## 路径 A：一键 Deploy to Cloudflare
-
-1. 确保本仓库（或你的 fork）为 **公开** GitHub / GitLab 仓库。
-2. 点击 README 中的 **Deploy to Cloudflare** 按钮，或打开：
-
-   ```text
-   https://deploy.workers.cloudflare.com/?url=<你的仓库 Git URL>
-   ```
-
-3. 在向导中确认 Worker 名、D1 等资源；构建命令会使用根目录 `pnpm build` / `pnpm deploy`（Workers Builds 会检测 `package.json` scripts）。
-
-   > **必须核对：** Worker → **Settings → Builds** 里的 **Deploy command** 要是 `pnpm run deploy`。若它是默认的 `npx wrangler deploy`，则既不跑迁移、也会因为仓库里的全零占位 `database_id` 而失败或部署出坏绑定 —— 表现就是「构建成功但线上还是旧版本」。
-
-4. **D1 migrations：** 根目录 `pnpm deploy` 的顺序是 `build` → `db:ensure` → `d1 migrations apply DB --remote` → `wrangler deploy`。`db:ensure`（`scripts/ensure-d1.mjs`）按 `database_name` 查真实 D1、没有就创建，把 ID 写进 gitignore 的 `wrangler.deploy.toml`，后两步都用这份生成配置。已知 ID 时可用环境变量跳过查询：
-
-   ```bash
-   D1_DATABASE_ID=<你的-d1-uuid> pnpm deploy
-   ```
-
-   若线上迁移落后（例如只跑过 `wrangler deploy`），补跑一次：
-
-   ```bash
-   pnpm db:migrate:remote
-   ```
-
-5. 部署成功后，在 Cloudflare Dashboard → 该 Worker → **Settings / Variables and Secrets** 中配置：
-
-   | 名称 | 类型 | 必填 | 说明 |
-   |------|------|------|------|
-   | `COOKIES_SECRET` | Secret | 是 | 会话签名密钥；可用 `openssl rand -hex 32` 生成 |
-   | `RESEND_API_KEY` | Secret | 是 | 发信凭证；[resend.com](https://resend.com) 免费层申请 |
-   | `EMAIL_DOMAIN` | Var | 是 | 如 `example.com`（勿带 `@`） |
-
-6. 继续完成下方 [部署后清单](#部署后清单)。
-
-> 也可在已部署的 Worker 详情页使用官方「分享」生成 Deploy 按钮片段，贴回你自己的 README。
-
----
-
-## 路径 B：手工 pnpm 部署
-
-```bash
-# 1. 依赖
 pnpm install
-
-# 2. 编辑 wrangler.toml
-#    - database_id 不用改：db:ensure 按 database_name 解析真实 D1 并写入
-#      wrangler.deploy.toml。若你账号里的 D1 显示名不同，改 database_name
-#      或用 D1_DATABASE_ID=<uuid> 指定
-#    - [vars] 中设置 EMAIL_DOMAIN
-
-# 3. Secrets（勿写入仓库）
-npx wrangler secret put COOKIES_SECRET
-npx wrangler secret put RESEND_API_KEY
-
-# 4. 构建、远程 D1 migrations、再 wrangler deploy
-#    （等价于 build → db:migrate:remote → deploy）
-pnpm deploy
 ```
 
-本地调试：
+**验证：** `pnpm -v` 输出 `11.17.0`，`node -v` ≥ `v22.12.0`。
+
+---
+
+## 步骤 2：登录 Cloudflare
 
 ```bash
-cp .dev.vars.example .dev.vars   # 填入本地 secrets
-pnpm db:migrate:local
+npx wrangler login
+```
+
+会弹出浏览器要求授权，点 Allow。
+
+**验证：**
+
+```bash
+npx wrangler whoami
+```
+
+应显示你的邮箱和 Account ID。如果显示 `You are not authenticated`，重新跑一次 login。
+
+> 在没有浏览器的机器上（比如服务器），改用 API Token：在 Cloudflare 后台 My Profile → API Tokens 建一个带 **Workers Scripts: Edit** 和 **D1: Edit** 权限的 token，然后 `export CLOUDFLARE_API_TOKEN=xxx`。
+
+---
+
+## 步骤 3：确认 `wrangler.toml`
+
+一般情况下**这一步什么都不用改**。域名之类的配置不在这里，见步骤 6。
+
+只有一处你可能想改——Worker 的名字：
+
+```toml
+name = "mankr-flarepost"    # 可自定义，但改了之后要一直用这个
+```
+
+改名等于换了一个新 Worker：`wrangler deploy` 会创建新的，旧的仍然占着原来的域名和 Email Routing 规则。所以要么一开始就定好，要么改完记得把域名和路由重新指过来。
+
+`[[d1_databases]]` 里的 `database_id` 是全零占位符，**不用动**——部署脚本会自动解析成真实 ID。
+
+---
+
+## 步骤 4：确认 D1 数据库
+
+```bash
+npx wrangler d1 list
+```
+
+看列表里有没有名为 `mankr-flarepost` 的库（要和 `wrangler.toml` 里的 `database_name` 一致）：
+
+- **已经有** → 什么都不用做，下一步会自动用它。
+- **没有，且账号里也没有别的 D1** → 下一步会自动创建。
+- **没有，但账号里有别的 D1** → 脚本会拒绝自动建库（防止误建空库看起来像数据丢了）。三选一：
+  - 把 `wrangler.toml` 的 `database_name` 改成列表里真实存在的那个名字；
+  - 或者部署时带上已知 ID：`D1_DATABASE_ID=<uuid> pnpm run deploy`；
+  - 或者确认就是要建新库：`D1_ALLOW_CREATE=1 pnpm run deploy`。
+
+---
+
+## 步骤 5：首次部署
+
+```bash
+pnpm run deploy
+```
+
+> 必须写 `pnpm run deploy`，不能写 `pnpm deploy`——后者是 pnpm 自带的子命令，不会执行本仓库的脚本。
+
+这一条命令依次做四件事：
+
+1. `pnpm build` — 构建前端 SPA 和 Worker
+2. `db:ensure` — 解析（或创建）真实 D1，把 ID 写进 `wrangler.deploy.toml`（这个文件已被 gitignore）
+3. `wrangler d1 migrations apply DB --remote` — 在远程 D1 上跑数据库迁移
+4. `wrangler deploy` — 上传 Worker
+
+**验证：** 命令末尾会打印一个 `https://mankr-flarepost.<你的子域>.workers.dev` 地址。现在打开它会看到界面，但还不能登录——Secret 还没设。
+
+如果输出里没有 workers.dev 地址，去 Dashboard → 你的 Worker → Settings → Domains & Routes，把 `workers.dev` 开关打开。
+
+---
+
+## 步骤 6：设置三个环境变量
+
+登录、发信、别名后缀分别依赖这三个值，全部在 Cloudflare 侧设置：
+
+| 名称 | 类型 | 值 |
+|------|------|-----|
+| `COOKIES_SECRET` | Secret | `openssl rand -hex 32` 的输出 |
+| `RESEND_API_KEY` | Secret | Resend 的 `re_` 开头 key（步骤 7 才拿得到，可以回头再设） |
+| `EMAIL_DOMAIN` | 明文 / Text | 你的域名，如 `example.com`，不带 `@`、不带子域前缀 |
+
+`EMAIL_DOMAIN` 决定别名后缀：设成 `example.com`，别名就是 `you@example.com`。
+
+### 方式 A：命令行
+
+```bash
+openssl rand -hex 32          # 先生成会话密钥，复制输出
+
+npx wrangler secret put COOKIES_SECRET
+# 粘贴刚才那串 64 位十六进制，回车
+
+npx wrangler secret put RESEND_API_KEY
+# 粘贴 re_ 开头的 key，回车
+```
+
+粘贴时终端不回显字符，是正常的。
+
+**验证：**
+
+```bash
+npx wrangler secret list
+```
+
+应列出这两个名字（不显示值）。
+
+`EMAIL_DOMAIN` 不是 Secret，命令行没有对应的 put 子命令，用下面的 Dashboard 方式设置。
+
+### 方式 B：Dashboard（找不到入口就照这个点）
+
+1. 打开 [dash.cloudflare.com](https://dash.cloudflare.com)
+2. 左侧菜单 **Compute (Workers)** → **Workers & Pages**
+3. 在列表里点你的 Worker（`mankr-flarepost`）
+4. 顶部切到 **Settings** 标签
+5. 找到 **Variables and Secrets** 这一节
+6. 点 **Add**，按上面表格逐个添加：
+   - `COOKIES_SECRET` 和 `RESEND_API_KEY` → **Type** 选 **Secret**
+   - `EMAIL_DOMAIN` → **Type** 选 **Text**（明文，它不是密钥）
+7. 每加完一个点 **Deploy** / **Save** 保存
+
+> 找不到 **Variables and Secrets**？说明 Worker 还没部署成功过——先做完步骤 5。
+>
+> 这里设的值**不会**被后续 `pnpm run deploy` 覆盖：仓库 `wrangler.toml` 里有 `keep_vars = true`，Secret 本身也从不被部署覆盖。
+
+---
+
+## 步骤 7：在 Resend 拿 API Key 并验证域名
+
+发信的发件人地址就是你的别名地址（`you@EMAIL_DOMAIN`），所以 Resend 必须先验证**整个域名**，否则发信会被拒。
+
+1. 注册并登录 [resend.com](https://resend.com)
+2. 左侧 **Domains** → **Add Domain** → 填入你的 `EMAIL_DOMAIN`（例如 `example.com`）
+3. Resend 会给出几条 DNS 记录（DKIM 的 TXT、SPF 的 TXT，可能还有 MX）。到 Cloudflare Dashboard → 选中该域名 → **DNS** → **Records** → **Add record**，逐条添加。
+   - 记录类型和值原样复制
+   - Name 一栏 Cloudflare 会自动补域名后缀，别重复填域名
+   - TXT 记录没有橙云开关，不用管代理状态
+4. 回到 Resend 点 **Verify**，等状态变成 **Verified**（DNS 生效通常几分钟内）
+5. 左侧 **API Keys** → **Create API Key**
+   - 权限选 **Sending access**
+   - 创建后 `re_` 开头的完整 key **只显示这一次**，立刻复制
+6. 回到步骤 6，把这个 key 设成 `RESEND_API_KEY`
+
+> Resend 的 MX 记录和 Cloudflare Email Routing 的 MX 记录可能冲突。收信靠 Cloudflare Email Routing，所以**以 Email Routing 的 MX 为准**；Resend 只负责发信，通常只需要 DKIM/SPF 的 TXT 记录就能验证通过。
+
+---
+
+## 步骤 8：配置 Email Routing（收信）
+
+1. Cloudflare Dashboard → 顶部选中你的**域名**（注意不是 Worker 页面）
+2. 左侧 **Email** → **Email Routing**
+3. 首次使用点 **Get started** / **Enable**，Cloudflare 会自动帮你添加所需的 MX 和 TXT 记录，确认即可
+4. 切到 **Routing rules** 标签
+5. 找到 **Catch-all address**，点 **Edit**：
+   - **Action** 选 **Send to a Worker**
+   - **Destination** 选你的 Worker `mankr-flarepost`
+   - 状态设为 **Enabled**，保存
+
+也可以不用 catch-all，改成在 **Custom addresses** 里为每个别名单独建规则，动作同样是 Send to a Worker。
+
+**验证：** Email Routing 页面顶部状态显示 **Enabled**，catch-all 规则指向你的 Worker。
+
+> 收信到 Worker **不需要**验证 destination address——那是「转发到某个邮箱」才需要的。
+>
+> 邮件到达后，Worker 会查这个收件地址在应用里有没有对应的**已启用别名**；没有就静默丢弃（不退信）。所以步骤 10 建别名之前，收到的信不会出现在收件箱里。
+
+---
+
+## 步骤 9：初始化管理员账号
+
+打开 `https://<你的-workers.dev-地址>/setup`
+
+- 填用户名和密码（**密码至少 8 位**），提交后自动登录
+- 这个接口**只在数据库里一个用户都没有时可用**；已经有用户会返回 403 `already_initialized`，这时直接去 `/login`
+
+如果这一步报错，几乎都是 `COOKIES_SECRET` 没设（回到步骤 6）。
+
+> 想绑自定义域名（比如 `mail.example.com`）：Worker → **Settings** → **Domains & Routes** → **Add** → **Custom domain**。绑定后用自定义域访问即可，`/setup` 同理。
+
+---
+
+## 步骤 10：创建别名（最多 5 个）
+
+登录后进入 `/aliases` 页面，点新建：
+
+- 可以只填本地部分（`hello`），也可以填完整地址（`hello@example.com`）
+- 后缀必须等于 `EMAIL_DOMAIN`，否则会被拒绝
+- 本地部分只允许 `a-z 0-9 . _ + -`
+- 第一个创建的别名自动成为默认发件地址
+- 上限 5 个，第 6 个会返回 `alias_limit`
+
+---
+
+## 步骤 11：验证收发
+
+**收信：** 从外部邮箱（Gmail 之类）发一封到你刚建的别名 → 应该出现在收件箱。
+
+**发信：** 在界面里回复这封信，或点写信 → 对方应该收到，同时 `/sent` 里出现记录。
+
+发信失败时，接口返回的错误码对照：
+
+| 错误码 | HTTP | 含义与处理 |
+|--------|------|------------|
+| `not_configured` | 502 | `RESEND_API_KEY` 没设或为空 → 回步骤 6 |
+| `invalid_address` | 400 | 发件域没在 Resend 验证通过，或收件地址格式不对 → 回步骤 7 |
+| `provider_error` | 502 | Resend 侧失败（配额、服务异常）→ 去 Resend 后台看日志 |
+| `rate_limited` | 429 | 应用内限流，每个别名每小时 30 封 |
+
+---
+
+## 日常更新与回滚
+
+**改完代码发新版本：**
+
+```bash
+pnpm run deploy
+```
+
+没有接 CI，`git push` **不会**自动部署，必须手动跑这条命令。
+
+**回滚：** Worker → **Deployments** → 找到旧版本 → **Rollback**。
+
+**只补跑数据库迁移**（比如之前只跑了 `wrangler deploy`）：
+
+```bash
+pnpm run db:migrate:remote
+```
+
+---
+
+## 本地开发
+
+```bash
+cp .dev.vars.example .dev.vars   # 填入 COOKIES_SECRET、RESEND_API_KEY、EMAIL_DOMAIN
+pnpm run db:migrate:local
 pnpm dev
 ```
 
----
+前端 http://localhost:5173，后端 http://127.0.0.1:8787。首次打开 `/setup` 建本地管理员。
 
-## 部署后清单
-
-按顺序完成：
-
-### 1. 确认 D1 migrations 已应用
-
-- [ ] 若用 **`pnpm deploy`**：脚本已包含 `wrangler d1 migrations apply DB --remote`，一般无需再跑
-- [ ] 若只用 **Dashboard Deploy 按钮**（可能未跑完整 npm `deploy` script）：本地执行一次 `pnpm db:migrate:remote`
-
-### 2. 确认环境变量与 Secrets
-
-- [ ] `EMAIL_DOMAIN` = 你的域名（如 `mail.example.com` 的根域 `example.com`，与别名后缀一致）
-- [ ] `COOKIES_SECRET` 已设置且足够长
-- [ ] `RESEND_API_KEY` 已设置，且发信域已在 Resend 侧验证
-
-### 3. Cloudflare Email Routing → Worker
-
-1. Dashboard → **Email** → **Email Routing** → 启用该域名的 Routing。
-2. 添加 **Catch-all**（或按别名逐条）规则，动作为 **Send to a Worker**，选择本项目的 `mankr-flarepost` Worker。
-3. 按提示完成 MX / SPF 等 DNS 记录（CF 会引导）。
-
-未接到 Worker 的邮件不会进入收件箱。
-
-### 4. 初始化管理员（`/setup`）
-
-1. 打开 Worker 的 `https://<你的-workers-子域>/setup`（或自定义域）。
-2. 创建用户名与密码（**仅当库中尚无用户时可成功**；已有用户则拒绝）。
-3. 随后使用 `/login` 登录。
-
-### 5. 创建别名（≤ 5）
-
-登录后在设置/别名页创建地址（本地部分或完整 `local@EMAIL_DOMAIN`）。第 6 个会被拒绝。
-
-### 6. 测收发
-
-1. **入站**：从外部邮箱向某一别名发一封测试信 → 收件箱应出现。
-2. **回复 / 新写**：在 UI 中回复或撰写 → 检查对方是否收到。
-3. **已发送**：确认 Sent 文件夹有对应记录。
-
-若发信报「未配置 / not_configured」：检查 `RESEND_API_KEY` 是否已设置。
-
----
-
-## Total Free 发信说明
-
-**发信只走 Resend 一条通道**，没有渠道开关。理由是它是唯一能「零绑卡 + 发给任意收件人」的免费路径：
-
-| 方案 | 为什么没有采用 |
-|------|----------------|
-| Cloudflare Email Sending | 发给任意地址需要 Workers **Paid**；免费层只能发往已验证的 destination |
-| MailChannels | 免费的 Workers 直发通道已于 2024-06-30 下线，现需付费方案与密钥 |
-
-配置方式：
-
-```toml
-# wrangler.toml [vars]
-EMAIL_DOMAIN = "your-domain.com"
-```
-
-```bash
-npx wrangler secret put RESEND_API_KEY
-```
-
-并在 [Resend](https://resend.com) 完成域名/发件人验证（按其免费层文档操作）。未验证的发信域会被 Resend 拒收，表现为 `invalid_address`。
+`.dev.vars` 只作用于本地，不会上传，也不要提交。
 
 ---
 
 ## 常见问题
 
-**推送了，但线上还是旧版本？**  
-先排除最朴素的那种：提交还在本地。`git status` 的 `ahead of 'origin/main' by N commits` 就是答案，`git log --oneline origin/main..HEAD` 能列出没推上去的提交。注意本地的 `origin/main` 引用可能是过期快照，先 `git fetch origin` 再看。
+**部署成功了，但线上还是旧版本。**
+先确认你访问的域名绑的是哪个 Worker。改过 `wrangler.toml` 里的 `name` 之后，`wrangler deploy` 会创建一个**新的** Worker，旧的那个仍然占着原来的域名。另外别只看 HTTP 200 判断——SPA 回退会让任何路径都返回 200，要抓 bundle 验证：
 
-**构建显示成功，但线上还是旧版本？**  
-先确认 Worker → Settings → Builds 的 **Deploy command** 是 `pnpm run deploy`；默认的 `npx wrangler deploy` 会跳过 `db:ensure` 与迁移，并直接使用仓库里的全零占位 `database_id`。再确认你访问的自定义域绑定的是 `wrangler.toml` 里 `name` 指定的那个 Worker —— 改过 `name` 之后 `wrangler deploy` 会写入新脚本，旧脚本仍占着原域名。快速判断线上代码新旧：`curl -s https://<域名>/ | grep -o 'index-[^"]*\.js'` 取到 bundle 后 grep 新功能字符串，别只看 HTTP 状态码（SPA 回退会让任何路径都返回 200）。
+```bash
+curl -s https://<你的域名>/ | grep -o 'index-[^"]*\.js'
+```
 
-**`db:ensure` 报 `no D1 named ... but these exist`？**  
-`database_name` 与账号里的真实 D1 显示名不一致（例如只在配置里改过名）。脚本拒绝新建空库以免看起来像数据丢失：把 `database_name` 改成真实名字，或 `D1_DATABASE_ID=<uuid>`；确实要新建才用 `D1_ALLOW_CREATE=1`。
+**`db:ensure` 报 `no D1 named ... but these exist`。**
+`database_name` 和账号里真实的 D1 名字对不上。见步骤 4 的三种处理方式。
 
-**一键部署后 D1 `database_id` 仍是占位？**  
-Deploy to Cloudflare 通常会自动创建并回写 D1 ID。若手工部署，请用 `wrangler d1 create` 后把 ID 写入 `wrangler.toml`。
+**`/setup` 返回 403。**
+管理员已存在，去 `/login`。忘记密码只能用 `wrangler d1 execute` 直接操作数据库重置。
 
-**`/setup` 返回 403？**  
-管理员已存在。请登录；若遗忘密码，需自行用 D1 工具重置或清空用户表后重建（生产请谨慎）。
+**能收不能发。**
+按步骤 11 的错误码表定位，九成是 `RESEND_API_KEY` 没设或 Resend 域名没验证。
 
-**能收不能发？**  
-优先检查 `RESEND_API_KEY` 是否设置，以及 Resend 侧的域名验证与配额。
+**能发不能收。**
+检查三件事：Email Routing 的 catch-all 规则是否指向 Worker 且已启用；`/aliases` 里对应别名是否存在且启用；别名后缀是否等于 `EMAIL_DOMAIN`。
 
-**别名创建失败？**  
-确认地址后缀等于 `EMAIL_DOMAIN`，且未超过 5 个。
+**别名创建失败，返回 `invalid_address`。**
+三种可能：`EMAIL_DOMAIN` 根本没设（域名为空时后端直接拒绝，回步骤 6）；填的后缀不等于 `EMAIL_DOMAIN`；本地部分含 `a-z 0-9 . _ + -` 之外的字符。已经有 5 个时报的是 `alias_limit`。
+
+---
+
+## 能力边界
+
+- 单用户、单域名、最多 5 个别名
+- **不支持附件**：开通 R2 需要账号绑卡，与「零信用卡」冲突。含附件的来信只保留正文，详情页会提示
+- 发信只走 Resend：Cloudflare Email Sending 发给任意收件人需要 Workers Paid；MailChannels 的免费 Workers 通道已于 2024-06-30 下线
 
 ---
 
 ## 相关文档
 
 - [README](../README.md)
+- [对外发信 API](./API.md)
 - [PRD](./superpowers/specs/2026-07-25-cloudflare-personal-mail-prd.md)
 - [架构](./superpowers/specs/2026-07-25-cloudflare-personal-mail-architecture.md)

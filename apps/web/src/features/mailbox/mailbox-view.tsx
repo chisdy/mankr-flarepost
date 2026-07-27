@@ -1,5 +1,5 @@
 import { MagnifyingGlassIcon, StarIcon, TrashIcon } from "@phosphor-icons/react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import {
   Link,
@@ -61,28 +61,35 @@ export function MailboxView() {
   const [searchParams, setSearchParams] = useSearchParams()
   const urlQuery = searchParams.get("q") ?? ""
   const [searchInput, setSearchInput] = useState(urlQuery)
+  const [prevUrlQuery, setPrevUrlQuery] = useState(urlQuery)
 
   const mode = useMemo(
     () => modeFromLocation(pathname, tagIdParam, urlQuery.trim()),
     [pathname, tagIdParam, urlQuery]
   )
 
-  useEffect(() => {
-    if (mode.kind === "search") setSearchInput(mode.query)
-  }, [mode])
+  // Sync draft input from URL when the query param changes (render-time adjust).
+  if (urlQuery !== prevUrlQuery) {
+    setPrevUrlQuery(urlQuery)
+    if (mode.kind === "search") setSearchInput(urlQuery)
+  }
 
+  const tagId = mode.kind === "tag" ? mode.tagId : null
   const [tagName, setTagName] = useState<string | null>(null)
+  const [tagNameForId, setTagNameForId] = useState<string | null>(null)
+
+  if (tagId !== tagNameForId) {
+    setTagNameForId(tagId)
+    setTagName(null)
+  }
 
   useEffect(() => {
-    if (mode.kind !== "tag") {
-      setTagName(null)
-      return
-    }
+    if (!tagId) return
     let cancelled = false
     api<{ tags: Tag[] }>("/api/tags")
       .then((data) => {
         if (cancelled) return
-        const found = data.tags.find((x) => x.id === mode.tagId)
+        const found = data.tags.find((x) => x.id === tagId)
         setTagName(found?.name ?? null)
       })
       .catch(() => {
@@ -91,7 +98,7 @@ export function MailboxView() {
     return () => {
       cancelled = true
     }
-  }, [mode])
+  }, [tagId])
 
   const meta = useMemo(() => {
     if (mode.kind === "search") {
@@ -136,50 +143,101 @@ export function MailboxView() {
   const [aliasCount, setAliasCount] = useState<number | null>(null)
   const [starringId, setStarringId] = useState<string | null>(null)
 
-  const load = useCallback(
-    async (cursor?: string | null) => {
-      if (mode.kind === "search" && !mode.query) {
-        setItems([])
-        setNextCursor(null)
-        setLoading(false)
-        setLoadingMore(false)
-        return
-      }
+  const listKey = useMemo(() => buildListQuery(mode), [mode])
+  const [activeListKey, setActiveListKey] = useState(listKey)
+  const searchWithoutQuery = mode.kind === "search" && !mode.query
 
-      const append = Boolean(cursor)
-      if (append) setLoadingMore(true)
-      else setLoading(true)
-      try {
-        const qs = buildListQuery(mode, cursor)
-        const path =
-          mode.kind === "search"
-            ? `/api/messages/search?${qs}`
-            : `/api/messages?${qs}`
-        const data = await api<{
-          items: MessageListItem[]
-          nextCursor: string | null
-        }>(path)
-        setItems((prev) => (append ? [...prev, ...data.items] : data.items))
-        setNextCursor(data.nextCursor)
-      } catch (err) {
-        toast.error(isApiError(err) ? err.message : t("mailbox.loadFailed"))
-        if (!append) {
-          setItems([])
-          setNextCursor(null)
-        }
-      } finally {
-        if (append) setLoadingMore(false)
-        else setLoading(false)
-      }
-    },
-    [mode, t]
-  )
-
-  useEffect(() => {
+  if (listKey !== activeListKey) {
+    setActiveListKey(listKey)
     setItems([])
     setNextCursor(null)
-    void load()
-  }, [load])
+    setLoading(!searchWithoutQuery)
+    setLoadingMore(false)
+  } else if (searchWithoutQuery && loading) {
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    if (searchWithoutQuery) return
+
+    let cancelled = false
+    const qs = buildListQuery(mode)
+    const path =
+      mode.kind === "search"
+        ? `/api/messages/search?${qs}`
+        : `/api/messages?${qs}`
+
+    api<{ items: MessageListItem[]; nextCursor: string | null }>(path)
+      .then((data) => {
+        if (cancelled) return
+        setItems(data.items)
+        setNextCursor(data.nextCursor)
+      })
+      .catch((err) => {
+        if (cancelled) return
+        toast.error(isApiError(err) ? err.message : t("mailbox.loadFailed"))
+        setItems([])
+        setNextCursor(null)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [listKey, mode, searchWithoutQuery, t])
+
+  async function loadMore() {
+    if (!nextCursor) return
+    setLoadingMore(true)
+    try {
+      const qs = buildListQuery(mode, nextCursor)
+      const path =
+        mode.kind === "search"
+          ? `/api/messages/search?${qs}`
+          : `/api/messages?${qs}`
+      const data = await api<{
+        items: MessageListItem[]
+        nextCursor: string | null
+      }>(path)
+      setItems((prev) => [...prev, ...data.items])
+      setNextCursor(data.nextCursor)
+    } catch (err) {
+      toast.error(isApiError(err) ? err.message : t("mailbox.loadFailed"))
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+
+  async function reload() {
+    if (searchWithoutQuery) {
+      setItems([])
+      setNextCursor(null)
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    try {
+      const qs = buildListQuery(mode)
+      const path =
+        mode.kind === "search"
+          ? `/api/messages/search?${qs}`
+          : `/api/messages?${qs}`
+      const data = await api<{
+        items: MessageListItem[]
+        nextCursor: string | null
+      }>(path)
+      setItems(data.items)
+      setNextCursor(data.nextCursor)
+    } catch (err) {
+      toast.error(isApiError(err) ? err.message : t("mailbox.loadFailed"))
+      setItems([])
+      setNextCursor(null)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -207,7 +265,7 @@ export function MailboxView() {
     try {
       await api("/api/messages/trash", { method: "DELETE" })
       toast.success(t("mailbox.emptied"))
-      await load()
+      await reload()
     } catch (err) {
       toast.error(isApiError(err) ? err.message : t("mailbox.emptyFailed"))
     } finally {
@@ -324,7 +382,7 @@ export function MailboxView() {
                           type="button"
                           variant="ghost"
                           size="icon-sm"
-                          className="mt-2.5 shrink-0"
+                          className="mt-2.5 shrink-0 text-muted-foreground hover:bg-amber-500/10 hover:text-amber-500"
                           disabled={starringId === item.id}
                           aria-label={
                             item.isStarred
@@ -395,7 +453,7 @@ export function MailboxView() {
                   variant="outline"
                   size="sm"
                   disabled={loadingMore}
-                  onClick={() => void load(nextCursor)}
+                  onClick={() => void loadMore()}
                 >
                   {loadingMore ? t("app.loading") : t("mailbox.loadMore")}
                 </Button>
