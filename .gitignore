@@ -9,3 +9,8 @@ wrangler.deploy.toml
 .env.*
 .worktrees
 .superpowers
+
+# CodeGraph: local index plus the Cursor rule that points at its MCP tools,
+# which only exist on machines where the server is installed.
+.codegraph/
+.cursor/rules/codegraph.mdc
