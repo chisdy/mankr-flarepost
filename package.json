@@ -9,9 +9,8 @@
     "start": "pnpm run dev",
     "dev": "pnpm --parallel --filter @mankr/web --filter @mankr/worker dev",
     "build": "pnpm --filter @mankr/web build && pnpm --filter @mankr/worker build",
-    "deploy": "pnpm build && pnpm run db:ensure && pnpm run r2:ensure && wrangler d1 migrations apply DB --remote --config wrangler.deploy.toml && wrangler deploy --config wrangler.deploy.toml",
+    "deploy": "pnpm build && pnpm run db:ensure && wrangler d1 migrations apply DB --remote --config wrangler.deploy.toml && wrangler deploy --config wrangler.deploy.toml",
     "db:ensure": "node scripts/ensure-d1.mjs",
-    "r2:ensure": "node scripts/ensure-r2.mjs",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:migrate:remote": "pnpm run db:ensure && wrangler d1 migrations apply DB --remote --config wrangler.deploy.toml",
     "db:seed:local": "wrangler d1 execute DB --local --file=./scripts/seed-local.sql",
@@ -28,13 +27,10 @@
         "description": "Required session cookie signing secret. Generate with `openssl rand -hex 32`."
       },
       "RESEND_API_KEY": {
-        "description": "Optional. Required when `SEND_CHANNEL=resend` (recommended Total Free arbitrary outbound). Get a free key at [resend.com](https://resend.com)."
+        "description": "Required for outbound mail. Get a free key at [resend.com](https://resend.com) and verify your sending domain there."
       },
       "EMAIL_DOMAIN": {
         "description": "Your mail domain without `@` (e.g. `example.com`). Aliases become `local@EMAIL_DOMAIN`."
-      },
-      "SEND_CHANNEL": {
-        "description": "`resend` (Total Free arbitrary send), `cloudflare` (Paid / verified destination), or `mailchannels`. See docs/DEPLOY.md."
       }
     }
   }

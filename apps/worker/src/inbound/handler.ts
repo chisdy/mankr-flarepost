@@ -1,4 +1,3 @@
-import { storeInboundAttachments } from '../attachments/service'
 import { findEnabledAliasByAddress } from '../aliases/service'
 import type { Env } from '../env'
 import { applyFiltersToMessage } from '../filters/service'
@@ -7,8 +6,8 @@ import { parseInboundMime } from './parse'
 
 /**
  * Email Routing Worker entry: accept mail for enabled aliases, store message
- * in D1 inbox; store attachments in R2 when binding is available.
- * After insert, enabled filters are applied (tags / star / trash).
+ * in D1 inbox. Attachment bytes are dropped (no object storage) — the message is
+ * flagged so the UI can say so. After insert, enabled filters are applied.
  */
 export async function handleInboundEmail(
   message: ForwardableEmailMessage,
@@ -31,30 +30,8 @@ export async function handleInboundEmail(
     subject: parsed.subject,
     textBody: parsed.textBody,
     htmlBody: parsed.htmlBody,
-    hasUnsupportedAttachments: false,
+    hasUnsupportedAttachments: parsed.hasAttachments,
   })
-
-  let skipped = false
-  if (parsed.attachments.length > 0) {
-    if (env.ATTACHMENTS) {
-      const result = await storeInboundAttachments(
-        env.DB,
-        env.ATTACHMENTS,
-        id,
-        parsed.attachments,
-      )
-      skipped = result.skipped
-    } else {
-      skipped = true
-    }
-  }
-
-  if (skipped) {
-    await env.DB
-      .prepare(`UPDATE messages SET has_unsupported_attachments = 1 WHERE id = ?`)
-      .bind(id)
-      .run()
-  }
 
   await applyFiltersToMessage(env.DB, id)
 }

@@ -2,7 +2,6 @@ import { Hono } from 'hono'
 import type { Env } from '../env'
 import { registerApiKeyRoutes } from '../api-keys/routes'
 import { registerAliasRoutes } from '../aliases/routes'
-import { registerAttachmentRoutes } from '../attachments/routes'
 import { registerAuthRoutes } from '../auth/routes'
 import { registerFilterRoutes } from '../filters/routes'
 import { registerMessageRoutes } from '../messages/routes'
@@ -26,7 +25,6 @@ export function createApp() {
   registerApiKeyRoutes(app)
   registerTagRoutes(app)
   registerFilterRoutes(app)
-  registerAttachmentRoutes(app)
   // Send before message :id routes so /api/messages/send is unambiguous
   registerSendRoutes(app)
   registerMessageRoutes(app)

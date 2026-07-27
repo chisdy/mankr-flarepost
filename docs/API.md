@@ -5,8 +5,7 @@
 ## 前置条件
 
 1. 至少有一个已启用的别名（发件地址）
-2. **任意收件人外发**需要 `SEND_CHANNEL=resend` 与 Secret `RESEND_API_KEY`  
-   （`cloudflare` / `mailchannels` 渠道有各自限制，一般不适合业务邮件）
+2. 已配置 Secret `RESEND_API_KEY`，且发信域已在 Resend 侧验证（外发统一走 Resend）
 3. 调用方必须是服务端；V1 **不发送 CORS 头**，浏览器直调会被同源策略拦截
 
 ## 鉴权

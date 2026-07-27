@@ -118,10 +118,7 @@
     "from": "From",
     "to": "To",
     "date": "Date",
-    "attachmentBanner": "This message had attachments that could not be stored. Only the text/HTML body is shown for those parts.",
-    "attachmentPartialBanner": "Some attachments could not be stored (size or count limits).",
-    "attachments": "Attachments",
-    "downloadFailed": "Could not download attachment",
+    "attachmentBanner": "This message had attachments. Attachments are not stored — only the text/HTML body is shown.",
     "editTags": "Edit tags",
     "noTagsYet": "No tags yet — create some in",
     "tagsFailed": "Could not update tags"
@@ -169,23 +166,13 @@
     "link": "Link",
     "linkPrompt": "Link URL",
     "errors": {
-      "not_configured": "Send channel not configured. Use SEND_CHANNEL=resend for Total Free outbound.",
+      "not_configured": "Outbound mail is not configured. Set the RESEND_API_KEY secret.",
       "rate_limited": "Send rate limit exceeded (30/hour).",
       "invalid_address": "Invalid sender or recipient address.",
       "provider_error": "Email provider failed to send.",
-      "attachments_unsupported": "Attachments require SEND_CHANNEL=resend.",
       "invalid_draft": "That draft no longer exists. Reload the page and try again."
     },
-    "quoteHeader": "On {{when}}, {{from}} wrote:",
-    "attachments": "Attachments",
-    "addAttachment": "Add attachment",
-    "uploading": "Uploading…",
-    "removeAttachment": "Remove attachment",
-    "attachmentHint": "Up to 5 files, 5 MB each, 10 MB total. Outbound files require Resend.",
-    "attachmentLimit": "Attachment limit reached (5 files).",
-    "attachmentTooLarge": "{{name}} exceeds the 5 MB limit.",
-    "attachmentUploadFailed": "Could not upload attachment",
-    "attachmentRemoveFailed": "Could not remove attachment"
+    "quoteHeader": "On {{when}}, {{from}} wrote:"
   },
   "settings": {
     "title": "Settings",
@@ -262,7 +249,7 @@
   "apiKeys": {
     "title": "API keys",
     "hint": "Let other sites send transactional mail through this domain. Prefer Disable over Delete so send history stays available.",
-    "resendRequired": "Arbitrary outbound requires SEND_CHANNEL=resend and a RESEND_API_KEY.",
+    "resendRequired": "Outbound mail goes through Resend, so a RESEND_API_KEY must be set.",
     "empty": "No API keys yet.",
     "create": "Create API key",
     "createTitle": "Create API key",

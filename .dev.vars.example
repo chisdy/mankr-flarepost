@@ -4,11 +4,5 @@
 # Required: session cookie signing key (e.g. openssl rand -hex 32)
 COOKIES_SECRET=replace-with-openssl-rand-hex-32
 
-# Required when SEND_CHANNEL=resend (Total Free arbitrary outbound)
+# Required for outbound mail (https://resend.com — free tier, no credit card)
 RESEND_API_KEY=
-
-# Optional: MailChannels path
-MAILCHANNELS_API_KEY=
-
-# Optional: fixed From override if a send channel requires it
-SENDER_EMAIL=

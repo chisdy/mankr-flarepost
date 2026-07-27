@@ -21,7 +21,7 @@ corepack prepare pnpm@11.17.0 --activate
 - **单用户**：一个管理员账号
 - **单域名**：`EMAIL_DOMAIN` 指向你的域名
 - **别名上限**：5 个
-- **附件**：R2 存储；单文件 ≤5 MB、每封 ≤5 个、合计 ≤10 MB；**外发附件需 Resend**
+- **附件**：**不支持**。Cloudflare 要求账号绑定支付方式才能开通 R2，为守住「零信用卡」这条线，本项目不接对象存储；含附件的来信只保留正文，详情页会提示
 - **发信**：见下文 [Total Free 发信说明](#total-free-发信说明)
 
 ---
@@ -56,9 +56,8 @@ corepack prepare pnpm@11.17.0 --activate
    | 名称 | 类型 | 必填 | 说明 |
    |------|------|------|------|
    | `COOKIES_SECRET` | Secret | 是 | 会话签名密钥；可用 `openssl rand -hex 32` 生成 |
-   | `RESEND_API_KEY` | Secret | 条件 | `SEND_CHANNEL=resend` 时必填 |
+   | `RESEND_API_KEY` | Secret | 是 | 发信凭证；[resend.com](https://resend.com) 免费层申请 |
    | `EMAIL_DOMAIN` | Var | 是 | 如 `example.com`（勿带 `@`） |
-   | `SEND_CHANNEL` | Var | 是 | `resend`（推荐 Total Free）/ `cloudflare` / `mailchannels` |
 
 6. 继续完成下方 [部署后清单](#部署后清单)。
 
@@ -76,13 +75,10 @@ pnpm install
 #    - database_id 不用改：db:ensure 按 database_name 解析真实 D1 并写入
 #      wrangler.deploy.toml。若你账号里的 D1 显示名不同，改 database_name
 #      或用 D1_DATABASE_ID=<uuid> 指定
-#    - R2：`pnpm run r2:ensure`（或 `pnpm deploy` 内自动）会创建
-#      mankr-flarepost-attachments / mankr-flarepost-attachments-preview
-#    - [vars] 中设置 EMAIL_DOMAIN、SEND_CHANNEL
+#    - [vars] 中设置 EMAIL_DOMAIN
 
 # 3. Secrets（勿写入仓库）
 npx wrangler secret put COOKIES_SECRET
-# Total Free 任意外发时：
 npx wrangler secret put RESEND_API_KEY
 
 # 4. 构建、远程 D1 migrations、再 wrangler deploy
@@ -109,17 +105,11 @@ pnpm dev
 - [ ] 若用 **`pnpm deploy`**：脚本已包含 `wrangler d1 migrations apply DB --remote`，一般无需再跑
 - [ ] 若只用 **Dashboard Deploy 按钮**（可能未跑完整 npm `deploy` script）：本地执行一次 `pnpm db:migrate:remote`
 
-### 1b. 确认 R2 附件桶存在
-
-- [ ] 若用 **`pnpm deploy`**：已跑 `r2:ensure`，会创建 `mankr-flarepost-attachments`（及 preview 桶）
-- [ ] 否则本地执行：`pnpm run r2:ensure`
-
 ### 2. 确认环境变量与 Secrets
 
 - [ ] `EMAIL_DOMAIN` = 你的域名（如 `mail.example.com` 的根域 `example.com`，与别名后缀一致）
-- [ ] `SEND_CHANNEL` = `resend`（Total Free）或你选择的渠道
 - [ ] `COOKIES_SECRET` 已设置且足够长
-- [ ] 若 `resend`：`RESEND_API_KEY` 已设置
+- [ ] `RESEND_API_KEY` 已设置，且发信域已在 Resend 侧验证
 
 ### 3. Cloudflare Email Routing → Worker
 
@@ -145,23 +135,23 @@ pnpm dev
 2. **回复 / 新写**：在 UI 中回复或撰写 → 检查对方是否收到。
 3. **已发送**：确认 Sent 文件夹有对应记录。
 
-若发信报「未配置 / not_configured」：检查 `SEND_CHANNEL` 与对应 API Key。
+若发信报「未配置 / not_configured」：检查 `RESEND_API_KEY` 是否已设置。
 
 ---
 
 ## Total Free 发信说明
 
-| 渠道 | `SEND_CHANNEL` | 信用卡 | 适用 |
-|------|----------------|--------|------|
-| **Resend（推荐零成本任意外发）** | `resend` | 否（Free Tier） | 向任意收件人发信；需免费 Resend API Key，并在 Resend 侧验证发信域/发件人 |
-| Cloudflare Email Sending | `cloudflare` | **向任意地址发信需 Workers Paid** | 仅适合已验证 destination / 已付费场景；**不是** Total Free 任意外发路径 |
-| MailChannels | `mailchannels` | 视其方案而定 | 可选备选；需自行配置密钥等 |
+**发信只走 Resend 一条通道**，没有渠道开关。理由是它是唯一能「零绑卡 + 发给任意收件人」的免费路径：
 
-**结论：** Cloudflare 的任意外发不在免费层；要「零绑卡 + 任意收件人」，请使用：
+| 方案 | 为什么没有采用 |
+|------|----------------|
+| Cloudflare Email Sending | 发给任意地址需要 Workers **Paid**；免费层只能发往已验证的 destination |
+| MailChannels | 免费的 Workers 直发通道已于 2024-06-30 下线，现需付费方案与密钥 |
+
+配置方式：
 
 ```toml
 # wrangler.toml [vars]
-SEND_CHANNEL = "resend"
 EMAIL_DOMAIN = "your-domain.com"
 ```
 
@@ -169,7 +159,7 @@ EMAIL_DOMAIN = "your-domain.com"
 npx wrangler secret put RESEND_API_KEY
 ```
 
-并在 [Resend](https://resend.com) 完成域名/发件人验证（按其免费层文档操作）。
+并在 [Resend](https://resend.com) 完成域名/发件人验证（按其免费层文档操作）。未验证的发信域会被 Resend 拒收，表现为 `invalid_address`。
 
 ---
 
@@ -191,7 +181,7 @@ Deploy to Cloudflare 通常会自动创建并回写 D1 ID。若手工部署，�
 管理员已存在。请登录；若遗忘密码，需自行用 D1 工具重置或清空用户表后重建（生产请谨慎）。
 
 **能收不能发？**  
-优先检查 `SEND_CHANNEL` / secrets，以及 Resend（或所选渠道）的域名验证与配额。
+优先检查 `RESEND_API_KEY` 是否设置，以及 Resend 侧的域名验证与配额。
 
 **别名创建失败？**  
 确认地址后缀等于 `EMAIL_DOMAIN`，且未超过 5 个。

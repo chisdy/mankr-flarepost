@@ -60,15 +60,6 @@ export type MessageListItem = {
   tagIds?: string[]
 }
 
-export type AttachmentMeta = {
-  id: string
-  messageId: string | null
-  filename: string
-  contentType: string
-  sizeBytes: number
-  createdAt: number
-}
-
 export type MessageDetail = MessageListItem & {
   textBody: string
   htmlBody: string | null
@@ -76,7 +67,6 @@ export type MessageDetail = MessageListItem & {
   direction: "inbound" | "outbound"
   lastErrorCode: string | null
   tags: Tag[]
-  attachments?: AttachmentMeta[]
 }
 
 export type MailboxViewMode =
@@ -90,7 +80,6 @@ export type SendErrorCode =
   | "rate_limited"
   | "invalid_address"
   | "provider_error"
-  | "attachments_unsupported"
 
 export type ApiErrorBody = {
   error?: string

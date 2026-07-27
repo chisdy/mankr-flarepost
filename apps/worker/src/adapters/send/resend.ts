@@ -16,13 +16,6 @@ export function createResendSendAdapter(env: { RESEND_API_KEY?: string }): SendA
       }
       if (input.html !== undefined) payload.html = input.html
       if (input.replyTo !== undefined) payload.reply_to = input.replyTo
-      if (input.attachments && input.attachments.length > 0) {
-        payload.attachments = input.attachments.map((a) => ({
-          filename: a.filename,
-          content: a.contentBase64,
-          content_type: a.contentType,
-        }))
-      }
 
       try {
         const res = await fetch('https://api.resend.com/emails', {

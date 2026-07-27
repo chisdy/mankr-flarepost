@@ -1,6 +1,3 @@
-import type { AttachmentMeta } from '../attachments/service'
-import { listAttachmentsForMessage } from '../attachments/service'
-
 export type Folder = 'inbox' | 'sent' | 'trash' | 'draft'
 export type Direction = 'inbound' | 'outbound'
 
@@ -30,7 +27,6 @@ export type MessageDetail = MessageListItem & {
   direction: Direction
   lastErrorCode: string | null
   tags: MessageTag[]
-  attachments: AttachmentMeta[]
 }
 
 export type MessageRow = {
@@ -130,7 +126,6 @@ export function rowToDetail(row: MessageRow, tags: MessageTag[] = []): MessageDe
     direction: row.direction,
     lastErrorCode: row.last_error_code,
     tags,
-    attachments: [],
   }
 }
 
@@ -349,8 +344,7 @@ export async function getMessage(db: D1Database, id: string): Promise<MessageDet
     .first<MessageRow>()
   if (!row) return null
   const tags = await loadTagsForMessage(db, id)
-  const attachments = await listAttachmentsForMessage(db, id)
-  return { ...rowToDetail(row, tags), attachments }
+  return rowToDetail(row, tags)
 }
 
 export async function setStarred(
@@ -422,13 +416,6 @@ export async function emptyTrash(db: D1Database): Promise<number> {
   await db
     .prepare(
       `DELETE FROM message_tags
-       WHERE message_id IN (SELECT id FROM messages WHERE folder = 'trash')`,
-    )
-    .run()
-  // Clear attachment rows before deleting messages (FK is SET NULL, but we hard-delete)
-  await db
-    .prepare(
-      `DELETE FROM attachments
        WHERE message_id IN (SELECT id FROM messages WHERE folder = 'trash')`,
     )
     .run()
@@ -586,10 +573,9 @@ export async function updateDraft(
   return (result.meta.changes ?? 0) > 0
 }
 
-/** Hard-delete a draft (and its tags / attachment rows). Returns false if not found or not a draft. */
+/** Hard-delete a draft (and its tags). Returns false if not found or not a draft. */
 export async function deleteDraft(db: D1Database, id: string): Promise<boolean> {
   await db.prepare(`DELETE FROM message_tags WHERE message_id = ?`).bind(id).run()
-  await db.prepare(`DELETE FROM attachments WHERE message_id = ?`).bind(id).run()
   const result = await db
     .prepare(`DELETE FROM messages WHERE id = ? AND folder = 'draft'`)
     .bind(id)

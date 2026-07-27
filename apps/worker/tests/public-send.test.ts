@@ -81,7 +81,6 @@ function envWith(db: D1Database, extras: Partial<Env> = {}): Env {
     DB: db,
     ASSETS: {} as Fetcher,
     COOKIES_SECRET: secret,
-    SEND_CHANNEL: 'resend',
     EMAIL_DOMAIN: 'example.com',
     RESEND_API_KEY: 'rk_test',
     ...extras,

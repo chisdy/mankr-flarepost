@@ -228,11 +228,10 @@ describe('folder actions', () => {
     await expect(restoreMessage(db, 'm1')).resolves.toBeNull()
   })
 
-  it('emptyTrash deletes message_tags, attachments, then trash messages', async () => {
+  it('emptyTrash deletes message_tags, then trash messages', async () => {
     const run = vi
       .fn()
       .mockResolvedValueOnce({ meta: { changes: 2 }, success: true })
-      .mockResolvedValueOnce({ meta: { changes: 1 }, success: true })
       .mockResolvedValueOnce({ meta: { changes: 3 }, success: true })
     const prepare = vi.fn().mockReturnValue({ run })
     const db = { prepare } as unknown as D1Database
@@ -240,9 +239,7 @@ describe('folder actions', () => {
     expect(await emptyTrash(db)).toBe(3)
     const tagSql = String(prepare.mock.calls[0]?.[0] ?? '')
     expect(tagSql).toMatch(/DELETE\s+FROM\s+message_tags/i)
-    const attSql = String(prepare.mock.calls[1]?.[0] ?? '')
-    expect(attSql).toMatch(/DELETE\s+FROM\s+attachments/i)
-    const msgSql = String(prepare.mock.calls[2]?.[0] ?? '')
+    const msgSql = String(prepare.mock.calls[1]?.[0] ?? '')
     expect(msgSql).toMatch(/DELETE\s+FROM\s+messages\s+WHERE\s+folder\s*=\s*'trash'/i)
   })
 })
@@ -301,10 +298,9 @@ describe('drafts', () => {
     expect(sql).toMatch(/WHERE\s+id\s*=\s*\?\s+AND\s+folder\s*=\s*'draft'/i)
   })
 
-  it('deleteDraft removes message_tags, attachments, then draft row', async () => {
+  it('deleteDraft removes message_tags, then draft row', async () => {
     const run = vi
       .fn()
-      .mockResolvedValueOnce({ meta: { changes: 1 }, success: true })
       .mockResolvedValueOnce({ meta: { changes: 1 }, success: true })
       .mockResolvedValueOnce({ meta: { changes: 1 }, success: true })
     const bind = vi.fn().mockReturnValue({ run })
@@ -314,9 +310,7 @@ describe('drafts', () => {
     expect(await deleteDraft(db, 'd1')).toBe(true)
     const tagSql = String(prepare.mock.calls[0]?.[0] ?? '')
     expect(tagSql).toMatch(/DELETE\s+FROM\s+message_tags\s+WHERE\s+message_id\s*=\s*\?/i)
-    const attSql = String(prepare.mock.calls[1]?.[0] ?? '')
-    expect(attSql).toMatch(/DELETE\s+FROM\s+attachments\s+WHERE\s+message_id\s*=\s*\?/i)
-    const sql = String(prepare.mock.calls[2]?.[0] ?? '')
+    const sql = String(prepare.mock.calls[1]?.[0] ?? '')
     expect(sql).toMatch(/DELETE\s+FROM\s+messages\s+WHERE\s+id\s*=\s*\?\s+AND\s+folder\s*=\s*'draft'/i)
     expect(bind).toHaveBeenCalledWith('d1')
   })
@@ -329,7 +323,6 @@ describe('messages routes auth', () => {
       DB: {} as D1Database,
       ASSETS: {} as Fetcher,
       COOKIES_SECRET: 'test-secret-at-least-32-chars!!',
-      SEND_CHANNEL: 'cloudflare',
       EMAIL_DOMAIN: 'example.com',
     } satisfies Env
 

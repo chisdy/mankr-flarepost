@@ -1,6 +1,4 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createCloudflareSendAdapter } from '../src/adapters/send/cloudflare'
-import { createMailchannelsSendAdapter } from '../src/adapters/send/mailchannels'
 import { createResendSendAdapter } from '../src/adapters/send/resend'
 import { getSendAdapter } from '../src/adapters/send'
 import type { Env } from '../src/env'
@@ -19,41 +17,6 @@ afterEach(() => {
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
   resetRateLimits()
-})
-
-describe('cloudflare send adapter', () => {
-  it('returns not_configured when EMAIL binding is missing', async () => {
-    const adapter = createCloudflareSendAdapter({})
-    await expect(adapter.send(baseInput)).resolves.toEqual({ error: 'not_configured' })
-  })
-
-  it('calls EMAIL.send and returns provider id', async () => {
-    const send = vi.fn().mockResolvedValue({ messageId: 'cf-1' })
-    const adapter = createCloudflareSendAdapter({ EMAIL: { send } })
-    await expect(adapter.send({ ...baseInput, html: '<p>Hi</p>', replyTo: 'r@example.com' })).resolves.toEqual({
-      id: 'cf-1',
-    })
-    expect(send).toHaveBeenCalledWith({
-      from: 'me@example.com',
-      to: ['you@example.com'],
-      subject: 'Hi',
-      text: 'Hello',
-      html: '<p>Hi</p>',
-      replyTo: 'r@example.com',
-    })
-  })
-
-  it('maps invalid address throws to invalid_address', async () => {
-    const send = vi.fn().mockRejectedValue(new Error('invalid destination address'))
-    const adapter = createCloudflareSendAdapter({ EMAIL: { send } })
-    await expect(adapter.send(baseInput)).resolves.toEqual({ error: 'invalid_address' })
-  })
-
-  it('maps other provider throws to provider_error', async () => {
-    const send = vi.fn().mockRejectedValue(new Error('upstream timeout'))
-    const adapter = createCloudflareSendAdapter({ EMAIL: { send } })
-    await expect(adapter.send(baseInput)).resolves.toEqual({ error: 'provider_error' })
-  })
 })
 
 describe('resend send adapter', () => {
@@ -104,49 +67,21 @@ describe('resend send adapter', () => {
   })
 })
 
-describe('mailchannels send adapter', () => {
-  it('returns not_configured without API key', async () => {
-    const adapter = createMailchannelsSendAdapter({})
-    await expect(adapter.send(baseInput)).resolves.toEqual({ error: 'not_configured' })
-  })
-
-  it('POSTs authenticated MailChannels Email API payload', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response('', { status: 202 }))
+describe('getSendAdapter', () => {
+  it('always returns the Resend adapter', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: 're_only' }), { status: 200 }),
+    )
     vi.stubGlobal('fetch', fetchMock)
 
-    const adapter = createMailchannelsSendAdapter({ MAILCHANNELS_API_KEY: 'mc_key' })
-    await expect(adapter.send({ ...baseInput, html: '<p>x</p>' })).resolves.toEqual({})
-
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(url).toBe('https://api.mailchannels.net/tx/v1/send')
-    expect(init.headers).toMatchObject({
-      'X-Api-Key': 'mc_key',
-      'Content-Type': 'application/json',
-    })
-    const body = JSON.parse(String(init.body)) as {
-      from: { email: string }
-      personalizations: { to: { email: string }[] }[]
-      content: { type: string; value: string }[]
-    }
-    expect(body.from.email).toBe('me@example.com')
-    expect(body.personalizations[0]?.to).toEqual([{ email: 'you@example.com' }])
-    expect(body.content).toEqual(
-      expect.arrayContaining([
-        { type: 'text/plain', value: 'Hello' },
-        { type: 'text/html', value: '<p>x</p>' },
-      ]),
-    )
+    const adapter = getSendAdapter({ RESEND_API_KEY: 'rk_test' } as Env)
+    await expect(adapter.send(baseInput)).resolves.toEqual({ id: 're_only' })
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://api.resend.com/emails')
   })
-})
 
-describe('getSendAdapter', () => {
-  it('switches on SEND_CHANNEL', async () => {
-    const cf = getSendAdapter({ SEND_CHANNEL: 'cloudflare' } as Env)
-    const rs = getSendAdapter({ SEND_CHANNEL: 'resend' } as Env)
-    const mc = getSendAdapter({ SEND_CHANNEL: 'mailchannels' } as Env)
-    await expect(cf.send(baseInput)).resolves.toEqual({ error: 'not_configured' })
-    await expect(rs.send(baseInput)).resolves.toEqual({ error: 'not_configured' })
-    await expect(mc.send(baseInput)).resolves.toEqual({ error: 'not_configured' })
+  it('reports not_configured when RESEND_API_KEY is missing', async () => {
+    const adapter = getSendAdapter({} as Env)
+    await expect(adapter.send(baseInput)).resolves.toEqual({ error: 'not_configured' })
   })
 })
 
@@ -211,7 +146,6 @@ describe('POST /api/messages/send', () => {
       DB: mockDb({}),
       ASSETS: {} as Fetcher,
       COOKIES_SECRET: secret,
-      SEND_CHANNEL: 'resend',
       EMAIL_DOMAIN: 'example.com',
       RESEND_API_KEY: 'rk',
     } satisfies Env
@@ -239,7 +173,6 @@ describe('POST /api/messages/send', () => {
       DB: db,
       ASSETS: {} as Fetcher,
       COOKIES_SECRET: secret,
-      SEND_CHANNEL: 'resend',
       EMAIL_DOMAIN: 'example.com',
       RESEND_API_KEY: 'rk',
     } satisfies Env
@@ -285,7 +218,6 @@ describe('POST /api/messages/send', () => {
       DB: db,
       ASSETS: {} as Fetcher,
       COOKIES_SECRET: secret,
-      SEND_CHANNEL: 'resend',
       EMAIL_DOMAIN: 'example.com',
       RESEND_API_KEY: 'rk',
     } satisfies Env
@@ -343,7 +275,6 @@ describe('POST /api/messages/send', () => {
       DB: db,
       ASSETS: {} as Fetcher,
       COOKIES_SECRET: secret,
-      SEND_CHANNEL: 'resend',
       EMAIL_DOMAIN: 'example.com',
       RESEND_API_KEY: 'rk',
     } satisfies Env

@@ -118,10 +118,7 @@
     "from": "发件人",
     "to": "收件人",
     "date": "时间",
-    "attachmentBanner": "此邮件含有未能保存的附件；对应部分仅展示正文。",
-    "attachmentPartialBanner": "部分附件未能保存（超过大小或数量限制）。",
-    "attachments": "附件",
-    "downloadFailed": "无法下载附件",
+    "attachmentBanner": "此邮件含有附件。本项目不保存附件，仅展示正文。",
     "editTags": "编辑标签",
     "noTagsYet": "还没有标签 — 请到这里创建：",
     "tagsFailed": "无法更新标签"
@@ -169,23 +166,13 @@
     "link": "链接",
     "linkPrompt": "链接地址",
     "errors": {
-      "not_configured": "发信渠道未配置。Total Free 任意外发请设置 SEND_CHANNEL=resend。",
+      "not_configured": "发信未配置，请设置 RESEND_API_KEY。",
       "rate_limited": "已超过发信频率限制（30 封/小时）。",
       "invalid_address": "发件人或收件人地址无效。",
       "provider_error": "邮件服务商发送失败。",
-      "attachments_unsupported": "当前发信渠道不支持附件，请将 SEND_CHANNEL 设为 resend。",
       "invalid_draft": "该草稿已不存在，请刷新页面后重试。"
     },
-    "quoteHeader": "在 {{when}}，{{from}} 写道：",
-    "attachments": "附件",
-    "addAttachment": "添加附件",
-    "uploading": "上传中…",
-    "removeAttachment": "移除附件",
-    "attachmentHint": "最多 5 个文件，单个 ≤5 MB，合计 ≤10 MB。外发附件需使用 Resend。",
-    "attachmentLimit": "已达附件数量上限（5 个）。",
-    "attachmentTooLarge": "{{name}} 超过 5 MB 限制。",
-    "attachmentUploadFailed": "无法上传附件",
-    "attachmentRemoveFailed": "无法移除附件"
+    "quoteHeader": "在 {{when}}，{{from}} 写道："
   },
   "settings": {
     "title": "设置",
@@ -262,7 +249,7 @@
   "apiKeys": {
     "title": "API 密钥",
     "hint": "供其他站点通过本域名发送业务邮件。优先使用「停用」而不是「删除」，以便保留发送记录。",
-    "resendRequired": "任意收件人外发需要 SEND_CHANNEL=resend，并配置 RESEND_API_KEY。",
+    "resendRequired": "外发统一走 Resend，需先配置 RESEND_API_KEY。",
     "empty": "还没有 API 密钥。",
     "create": "创建 API 密钥",
     "createTitle": "创建 API 密钥",

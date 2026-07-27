@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { FloppyDiskIcon, PaperPlaneTiltIcon, PaperclipIcon, TrashIcon } from "@phosphor-icons/react"
+import { FloppyDiskIcon, PaperPlaneTiltIcon, TrashIcon } from "@phosphor-icons/react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { useTranslation } from "react-i18next"
@@ -35,7 +35,7 @@ import {
   replySubject,
 } from "@/lib/format"
 import { htmlHasText, htmlToText, textToHtml } from "@/lib/html-text"
-import type { Alias, AttachmentMeta, MessageDetail, SendErrorCode } from "@/lib/types"
+import type { Alias, MessageDetail, SendErrorCode } from "@/lib/types"
 
 type ComposeValues = {
   fromAliasId: string
@@ -45,8 +45,6 @@ type ComposeValues = {
 }
 
 const AUTOSAVE_MS = 1500
-const MAX_ATTACHMENTS = 5
-const MAX_FILE_BYTES = 5 * 1024 * 1024
 
 export function ComposeView() {
   const { t } = useTranslation()
@@ -64,9 +62,6 @@ export function ComposeView() {
   const [replyToMessageId, setReplyToMessageId] = useState<string | undefined>()
   const [draftId, setDraftId] = useState<string | undefined>(draftIdParam ?? undefined)
   const [editorKey, setEditorKey] = useState(0)
-  const [attachments, setAttachments] = useState<AttachmentMeta[]>([])
-  const [uploading, setUploading] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">(
     "idle"
   )
@@ -211,7 +206,6 @@ export function ComposeView() {
           }
           setDraftId(original.id)
           hydratedDraftRef.current = original.id
-          setAttachments(original.attachments ?? [])
         } else if (replyId) {
           const original = await api<MessageDetail>(`/api/messages/${replyId}`)
           if (cancelled) return
@@ -298,7 +292,6 @@ export function ComposeView() {
       subject: values.subject,
       text: htmlToText(values.html),
       html: values.html,
-      attachmentIds: attachments.map((a) => a.id),
     }
 
     if (opts.silent) setAutoSaveStatus("saving")
@@ -365,7 +358,6 @@ export function ComposeView() {
     watched.to,
     watched.subject,
     watched.html,
-    attachments,
     loading,
     submitting,
     deletingDraft,
@@ -386,50 +378,6 @@ export function ComposeView() {
       skipAutoSaveRef.current = false
     } finally {
       setDeletingDraft(false)
-    }
-  }
-
-  async function onPickFiles(fileList: FileList | null) {
-    if (!fileList || fileList.length === 0) return
-    if (attachments.length >= MAX_ATTACHMENTS) {
-      toast.error(t("compose.attachmentLimit"))
-      return
-    }
-
-    setUploading(true)
-    try {
-      for (const file of Array.from(fileList)) {
-        if (attachments.length >= MAX_ATTACHMENTS) {
-          toast.error(t("compose.attachmentLimit"))
-          break
-        }
-        if (file.size > MAX_FILE_BYTES) {
-          toast.error(t("compose.attachmentTooLarge", { name: file.name }))
-          continue
-        }
-        const form = new FormData()
-        form.append("file", file)
-        if (draftIdRef.current) form.append("messageId", draftIdRef.current)
-        const meta = await api<AttachmentMeta>("/api/attachments", {
-          method: "POST",
-          body: form,
-        })
-        setAttachments((prev) => [...prev, meta])
-      }
-    } catch (err) {
-      toast.error(isApiError(err) ? err.message : t("compose.attachmentUploadFailed"))
-    } finally {
-      setUploading(false)
-      if (fileInputRef.current) fileInputRef.current.value = ""
-    }
-  }
-
-  async function removeAttachment(id: string) {
-    try {
-      await api(`/api/attachments/${id}`, { method: "DELETE" })
-      setAttachments((prev) => prev.filter((a) => a.id !== id))
-    } catch (err) {
-      toast.error(isApiError(err) ? err.message : t("compose.attachmentRemoveFailed"))
     }
   }
 
@@ -461,7 +409,6 @@ export function ComposeView() {
           html: parsed.data.html,
           replyToMessageId,
           draftId: draftIdRef.current,
-          attachmentIds: attachments.map((a) => a.id),
         }),
       })
       toast.success(t("compose.sent"))
@@ -611,64 +558,6 @@ export function ComposeView() {
                 )}
               />
               <FieldError errors={[form.formState.errors.html]} />
-            </Field>
-
-            <Field>
-              <FieldLabel>{t("compose.attachments")}</FieldLabel>
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="sr-only"
-                multiple
-                onChange={(e) => void onPickFiles(e.target.files)}
-              />
-              <div className="flex flex-col gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="w-fit"
-                  disabled={
-                    uploading ||
-                    submitting ||
-                    savingDraft ||
-                    deletingDraft ||
-                    attachments.length >= MAX_ATTACHMENTS
-                  }
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <PaperclipIcon data-icon="inline-start" />
-                  {uploading ? t("compose.uploading") : t("compose.addAttachment")}
-                </Button>
-                <FieldDescription>{t("compose.attachmentHint")}</FieldDescription>
-                {attachments.length > 0 ? (
-                  <ul className="flex flex-col gap-1">
-                    {attachments.map((att) => (
-                      <li
-                        key={att.id}
-                        className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm"
-                      >
-                        <span className="min-w-0 truncate">
-                          {att.filename}
-                          <span className="ml-2 text-xs text-muted-foreground">
-                            ({Math.max(1, Math.round(att.sizeBytes / 1024))} KB)
-                          </span>
-                        </span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label={t("compose.removeAttachment")}
-                          disabled={submitting || savingDraft || deletingDraft}
-                          onClick={() => void removeAttachment(att.id)}
-                        >
-                          <TrashIcon />
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
             </Field>
           </FieldGroup>
 

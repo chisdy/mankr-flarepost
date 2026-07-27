@@ -1,11 +1,4 @@
 import type { Context, Hono } from 'hono'
-import {
-  AttachmentLimitError,
-  AttachmentNotFoundError,
-  deleteAttachmentsForMessages,
-  deleteAttachmentsForTrash,
-  linkAttachmentsToMessage,
-} from '../attachments/service'
 import { findAliasById } from '../aliases/service'
 import type { Env } from '../env'
 import { jsonError } from '../http/errors'
@@ -37,7 +30,6 @@ type DraftBody = {
   subject?: unknown
   text?: unknown
   html?: unknown
-  attachmentIds?: unknown
 }
 
 function isNonEmptyString(value: unknown): value is string {
@@ -59,16 +51,6 @@ type ParsedDraft = {
   subject: string
   text: string
   html: string | null
-  attachmentIds: string[]
-}
-
-function parseAttachmentIds(value: unknown): string[] | null {
-  if (value === undefined || value === null) return []
-  if (!Array.isArray(value)) return null
-  if (!value.every((x): x is string => typeof x === 'string' && x.trim().length > 0)) {
-    return null
-  }
-  return [...new Set(value.map((x) => x.trim()))]
 }
 
 async function parseDraftBody(
@@ -92,11 +74,6 @@ async function parseDraftBody(
     return { ok: false, response: jsonError(c, 400, 'invalid_body') }
   }
 
-  const attachmentIds = parseAttachmentIds(body.attachmentIds)
-  if (attachmentIds === null) {
-    return { ok: false, response: jsonError(c, 400, 'invalid_body') }
-  }
-
   const alias = await findAliasById(c.env.DB, body.fromAliasId.trim())
   if (!alias || !alias.enabled) {
     return { ok: false, response: jsonError(c, 400, 'invalid_alias') }
@@ -111,7 +88,6 @@ async function parseDraftBody(
       subject: body.subject,
       text: body.text,
       html: typeof body.html === 'string' ? body.html : null,
-      attachmentIds,
     },
   }
 }
@@ -161,8 +137,6 @@ export function registerMessageRoutes(app: MessageApp): void {
 
   // Physical delete all trash — register before :id routes for clarity
   app.delete('/api/messages/trash', async (c) => {
-    // Prefer R2 cleanup before D1 row delete inside emptyTrash
-    await deleteAttachmentsForTrash(c.env.DB, c.env.ATTACHMENTS)
     const deleted = await emptyTrash(c.env.DB)
     return c.json({ deleted })
   })
@@ -197,17 +171,6 @@ export function registerMessageRoutes(app: MessageApp): void {
       htmlBody: parsed.data.html,
     })
 
-    if (parsed.data.attachmentIds.length > 0) {
-      try {
-        await linkAttachmentsToMessage(c.env.DB, stored.id, parsed.data.attachmentIds)
-      } catch (e) {
-        if (e instanceof AttachmentNotFoundError || e instanceof AttachmentLimitError) {
-          return jsonError(c, 400, e.code)
-        }
-        throw e
-      }
-    }
-
     return c.json({ id: stored.id }, 201)
   })
 
@@ -225,27 +188,12 @@ export function registerMessageRoutes(app: MessageApp): void {
     })
     if (!ok) return jsonError(c, 404, 'not_found')
 
-    if (parsed.data.attachmentIds.length > 0) {
-      try {
-        await linkAttachmentsToMessage(c.env.DB, c.req.param('id'), parsed.data.attachmentIds)
-      } catch (e) {
-        if (e instanceof AttachmentNotFoundError || e instanceof AttachmentLimitError) {
-          return jsonError(c, 400, e.code)
-        }
-        throw e
-      }
-    }
-
     return c.json({ id: c.req.param('id') })
   })
 
   app.delete('/api/messages/drafts/:id', async (c) => {
     const id = c.req.param('id')
-    // Deleting attachments is destructive and R2 has no undo, so prove it is a draft first.
     if (!(await isDraft(c.env.DB, id))) return jsonError(c, 404, 'not_found')
-    if (c.env.ATTACHMENTS) {
-      await deleteAttachmentsForMessages(c.env.DB, c.env.ATTACHMENTS, [id])
-    }
     const ok = await deleteDraft(c.env.DB, id)
     if (!ok) return jsonError(c, 404, 'not_found')
     return c.json({ ok: true })

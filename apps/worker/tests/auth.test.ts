@@ -41,7 +41,6 @@ describe('GET /api/setup', () => {
       DB: db,
       ASSETS: {} as Fetcher,
       COOKIES_SECRET: secret,
-      SEND_CHANNEL: 'resend',
       EMAIL_DOMAIN: 'example.com',
     }
   }

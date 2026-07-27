@@ -27,7 +27,7 @@ type PublicSendBody = {
 }
 
 const ERROR_STATUS: Record<
-  Exclude<SendErrorCode, 'rate_limited' | 'attachments_unsupported'> | 'quota_exceeded' | 'unauthorized',
+  Exclude<SendErrorCode, 'rate_limited'> | 'quota_exceeded' | 'unauthorized',
   400 | 401 | 429 | 502
 > = {
   unauthorized: 401,
@@ -41,8 +41,7 @@ const ERROR_MESSAGE: Record<keyof typeof ERROR_STATUS, string> = {
   unauthorized: 'Missing or invalid API key.',
   invalid_address: 'Invalid sender or recipient address.',
   quota_exceeded: 'API key send quota exceeded.',
-  not_configured:
-    'Send channel is not configured. For arbitrary outbound, set SEND_CHANNEL=resend and RESEND_API_KEY.',
+  not_configured: 'Outbound mail is not configured. Set the RESEND_API_KEY secret.',
   provider_error: 'Email provider failed to send the message.',
 }
 
@@ -115,10 +114,7 @@ export function registerPublicSendRoutes(app: PublicSendApp): void {
     const logId = crypto.randomUUID()
 
     if (isSendError(result)) {
-      const code =
-        result.error === 'rate_limited' || result.error === 'attachments_unsupported'
-          ? 'provider_error'
-          : result.error
+      const code = result.error === 'rate_limited' ? 'provider_error' : result.error
       await c.env.DB.batch([
         insertSendLogStatement(
           c.env.DB,

@@ -2,22 +2,22 @@
 
 面向个人站长的轻量域名邮件客户端：在 Cloudflare 免费层内完成日常收、读、写、回。
 
-单用户 · 单域名 · 最多 5 个别名 · Web 收发闭环 · 星标 / 标签 / 过滤器 · 搜索 · 富文本写信 · 附件（R2）
+单用户 · 单域名 · 最多 5 个别名 · Web 收发闭环 · 星标 / 标签 / 过滤器 · 搜索 · 富文本写信
 
-## 能力边界（V1 / P0 + 组织 / 写作 / 附件）
+## 能力边界（V1 / P0 + 组织 / 写作）
 
 | 项 | 限制 |
 |----|------|
 | 用户 | 单管理员账号 |
 | 域名 | 单域名（`EMAIL_DOMAIN`） |
 | 别名 | 最多 **5** 个 |
-| 附件 | R2；单文件 ≤**5 MB**，每封 ≤**5** 个，合计 ≤**10 MB**；外发需 `SEND_CHANNEL=resend` |
+| 附件 | **不支持**。开通 R2 需在 Cloudflare 账号绑定支付方式，与「零信用卡」冲突；含附件的来信只保留正文，并在详情页给出提示 |
 | 搜索 | 主题 / 发件人 / 正文 `LIKE`（不含垃圾箱与草稿） |
 | 自定义文件夹 | 尚未实现 |
 | 标签 | 最多 **50** 个；侧栏可按标签浏览 |
 | 过滤器 | 仅对新入站邮件按优先级叠加执行 |
 | 写信 | TipTap 极简富文本；草稿约 1.5s 自动保存 |
-| 发信（Total Free） | Cloudflare 向任意收件人发信需 Workers **Paid**；零信用卡任意外发请用 `SEND_CHANNEL=resend` + Resend Free API Key |
+| 发信 | 只走 **Resend**（免费层，无需信用卡），需设置 `RESEND_API_KEY` 并在 Resend 侧验证发信域。Cloudflare Email Sending 发往任意收件人需 Workers Paid，故未采用 |
 
 完整部署步骤见 **[docs/DEPLOY.md](./docs/DEPLOY.md)**。
 
@@ -31,9 +31,9 @@
 
 部署完成后务必：
 
-1. **D1 + R2 + migrations：** `pnpm deploy` 会依次 `db:ensure`（解析/创建 D1 → `wrangler.deploy.toml`）、`r2:ensure`（创建附件桶若缺失）、远程 migrations、再 `wrangler deploy`。仓库里提交的全零 `database_id` 只服务于一键部署，**部署链路不会使用它**。若 Cloudflare 的构建配置里 Deploy 命令不是 `pnpm run deploy`，迁移与新版本都不会上线
-2. 设置 Secret：`COOKIES_SECRET`（必填）；若用 Resend，再设 `RESEND_API_KEY`
-3. 设置变量：`EMAIL_DOMAIN`、`SEND_CHANNEL`（Total Free 推荐 `resend`）
+1. **D1 + migrations：** `pnpm deploy` 会依次 `db:ensure`（解析/创建 D1 → `wrangler.deploy.toml`）、远程 migrations、再 `wrangler deploy`。仓库里提交的全零 `database_id` 只服务于一键部署，**部署链路不会使用它**。若 Cloudflare 的构建配置里 Deploy 命令不是 `pnpm run deploy`，迁移与新版本都不会上线
+2. 设置 Secret：`COOKIES_SECRET` 与 `RESEND_API_KEY`（均必填）
+3. 设置变量：`EMAIL_DOMAIN`
 4. 按 [部署清单](./docs/DEPLOY.md#部署后清单) 配置 Email Routing、打开 `/setup`、创建别名并测收发
 
 ## 国际化
