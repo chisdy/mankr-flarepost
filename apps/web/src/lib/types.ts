@@ -96,3 +96,27 @@ export type ApiErrorBody = {
   error?: string
   message?: string
 }
+
+export type ApiKeyUsage = {
+  sent24h: number
+  failed24h: number
+  sent7d: number
+  failed7d: number
+  lastUsedAt: number | null
+}
+
+export type ApiKey = {
+  id: string
+  name: string
+  keyPrefix: string
+  aliasId: string
+  aliasAddress: string
+  aliasEnabled: boolean
+  enabled: boolean
+  hourlyLimit: number
+  dailyLimit: number
+  createdAt: number
+  usage: ApiKeyUsage
+  /** Present only on the create response — shown once, never stored. */
+  secret?: string
+}

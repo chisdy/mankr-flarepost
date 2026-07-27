@@ -83,5 +83,6 @@ docs/         # 部署与规格文档
 ## 文档
 
 - [部署指南](./docs/DEPLOY.md)
+- [对外发信 API](./docs/API.md)（其他站点用 API Key 发送业务邮件）
 - [PRD](./docs/superpowers/specs/2026-07-25-cloudflare-personal-mail-prd.md)
 - [架构](./docs/superpowers/specs/2026-07-25-cloudflare-personal-mail-architecture.md)

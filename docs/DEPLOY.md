@@ -175,6 +175,9 @@ npx wrangler secret put RESEND_API_KEY
 
 ## 常见问题
 
+**推送了，但线上还是旧版本？**  
+先排除最朴素的那种：提交还在本地。`git status` 的 `ahead of 'origin/main' by N commits` 就是答案，`git log --oneline origin/main..HEAD` 能列出没推上去的提交。注意本地的 `origin/main` 引用可能是过期快照，先 `git fetch origin` 再看。
+
 **构建显示成功，但线上还是旧版本？**  
 先确认 Worker → Settings → Builds 的 **Deploy command** 是 `pnpm run deploy`；默认的 `npx wrangler deploy` 会跳过 `db:ensure` 与迁移，并直接使用仓库里的全零占位 `database_id`。再确认你访问的自定义域绑定的是 `wrangler.toml` 里 `name` 指定的那个 Worker —— 改过 `name` 之后 `wrangler deploy` 会写入新脚本，旧脚本仍占着原域名。快速判断线上代码新旧：`curl -s https://<域名>/ | grep -o 'index-[^"]*\.js'` 取到 bundle 后 grep 新功能字符串，别只看 HTTP 状态码（SPA 回退会让任何路径都返回 200）。
 

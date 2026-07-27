@@ -1,10 +1,12 @@
 import { Hono } from 'hono'
 import type { Env } from '../env'
+import { registerApiKeyRoutes } from '../api-keys/routes'
 import { registerAliasRoutes } from '../aliases/routes'
 import { registerAttachmentRoutes } from '../attachments/routes'
 import { registerAuthRoutes } from '../auth/routes'
 import { registerFilterRoutes } from '../filters/routes'
 import { registerMessageRoutes } from '../messages/routes'
+import { registerPublicSendRoutes } from '../send/public-routes'
 import { registerSendRoutes } from '../send/routes'
 import { registerTagRoutes } from '../tags/routes'
 import { jsonError } from './errors'
@@ -15,10 +17,13 @@ export function createApp() {
 
   // Public + authed auth routes (login/setup are unguarded inside registerAuthRoutes)
   registerAuthRoutes(app)
+  // Bearer-auth send API — must register before requireSession
+  registerPublicSendRoutes(app)
 
   // Authenticated API routes
   app.use('/api/*', requireSession)
   registerAliasRoutes(app)
+  registerApiKeyRoutes(app)
   registerTagRoutes(app)
   registerFilterRoutes(app)
   registerAttachmentRoutes(app)

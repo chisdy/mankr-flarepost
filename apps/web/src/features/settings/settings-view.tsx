@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { ChangePasswordDialog } from "@/features/auth/change-password-dialog"
+import { ApiKeysSettings } from "@/features/settings/api-keys-settings"
 import { TagsFiltersSettings } from "@/features/settings/tags-filters-settings"
 import { api, isApiError } from "@/lib/api"
 import type { Alias, AuthUser } from "@/lib/types"
@@ -291,6 +292,8 @@ export function SettingsView() {
           <Separator />
 
           <TagsFiltersSettings aliases={aliases} />
+
+          <ApiKeysSettings aliases={aliases} />
         </div>
       </ScrollArea>
 

@@ -1,6 +1,10 @@
 -- Local demo seed for UI walkthrough (EMAIL_DOMAIN=example.com)
 -- Safe to re-run only after clearing aliases/messages, or on empty tables.
+-- Clears API-key tables first (they reference aliases).
 
+DELETE FROM api_send_logs;
+DELETE FROM api_key_usage;
+DELETE FROM api_keys;
 DELETE FROM messages;
 DELETE FROM aliases;
 
