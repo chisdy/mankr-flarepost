@@ -27,7 +27,7 @@
 | `CLOUDFLARE_ACCOUNT_ID` | 明文变量 | Dashboard 或 `.dev.vars` | 账号 ID，`npx wrangler whoami` 可查 |
 | `CLOUDFLARE_API_TOKEN` | Secret | `wrangler secret put` 或 Dashboard | 只读用量 token，权限见步骤 6 |
 
-两项**缺一即视为未配置**，不会拿半套凭证去打接口。Resend 卡片复用已有的 `RESEND_API_KEY`，不需要额外配置。
+两项**缺一即视为未配置**，不会拿半套凭证去打接口。发信额度那张卡不需要任何额外配置：`RESEND_API_KEY` 用**只给发信权限的受限键**就够，配额是在发信时顺带记下的——详见步骤 6 的方式 C。
 
 必填三项由 **步骤 6** 统一设置，`wrangler.toml` 里不含任何一个——这是公开仓库，域名写进 `[vars]` 会跟着每个 fork 跑。仓库里有 `keep_vars = true`，所以 `wrangler deploy` 不会覆盖你在 Dashboard 里设的明文变量（Secret 本来就不会被覆盖）。
 
@@ -187,7 +187,7 @@ npx wrangler secret list
 
 ### 方式 C：可选——打开「用量」页的 Cloudflare 卡片
 
-`/usage` 页展示免费额度的消耗情况。Resend 那半边复用 `RESEND_API_KEY`，开箱可用；Cloudflare 那半边需要再加两个值，不加就显示「未配置」，收发信不受影响。
+`/usage` 页展示免费额度的消耗情况。发信额度那张卡复用 `RESEND_API_KEY`，不用额外配；Cloudflare 那张卡需要再加两个值，不加就显示「未配置」，收发信不受影响。
 
 1. 拿 Account ID：
 
@@ -214,9 +214,15 @@ npx wrangler secret put CLOUDFLARE_API_TOKEN
 
 **验证：** 部署后登录，打开 `/usage`，Cloudflare 卡片应显示 Worker 请求数与 D1 读写行数的环形图，而不是「未配置」。
 
+**发信额度那张卡是怎么来的：** Resend 没有查用量的接口，配额只出现在**发信成功**那次响应的 `x-resend-daily-quota` / `x-resend-monthly-quota` 头里。所以每次发信时会把这两个数字连同时间戳存进 D1，同时本站也自己按收件人数记一份账，展示时取两者的较大值——Resend 的数字能覆盖本站看不见的流量（比如同一账号被别的程序用了），本站的账则覆盖上次报告之后新发的信。
+
+这带来两个好处：`RESEND_API_KEY` 用只给发信权限的受限键就行，不必为了看用量换成全权限密钥；而且刚部署、还没发过信时卡片也不会空着，本站自己的计数从第一封起就有数。
+
 > 页面上的上限值写死的是**免费计划**额度（Workers 10 万请求/天、D1 500 万行读/天、10 万行写/天、5 GB 存储；Resend 100 封/天、3000 封/月）。升级到付费计划后真实上限更高，页面数字只应看作免费额度的参考。
 >
-> 「无数据」不等于 0：Resend 的每日额度头只对免费账号返回，Paid 账号那一栏会显示无数据。
+> 每日额度头只对免费账号返回，Paid 账号那一栏由本站自己的计数兜底。
+>
+> Resend 官方文档说「收发信都计入配额」，指的是它自己的收信服务；本项目收信走 Cloudflare Email Routing，不经过 Resend，所以不占这份额度。
 
 ---
 

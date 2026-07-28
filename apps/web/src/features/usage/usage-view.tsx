@@ -10,7 +10,7 @@ import { api, isApiError } from "@/lib/api"
 import type { UsageSnapshot } from "@/lib/types"
 
 import { FreeTierCard } from "./free-tier-card"
-import { CloudflareCard, ResendCard } from "./provider-cards"
+import { CloudflareCard, SendProviderCard } from "./provider-cards"
 
 export function UsageView() {
   const { t } = useTranslation()
@@ -70,13 +70,26 @@ export function UsageView() {
 
       <ScrollArea className="min-h-0 flex-1">
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 sm:px-8">
-          <ResendCard resend={snapshot?.resend} loading={loading} />
+          {loading ? (
+            <SendProviderCard usage={undefined} loading />
+          ) : (
+            (snapshot?.sendProviders ?? []).map((provider) => (
+              <SendProviderCard
+                key={provider.provider}
+                usage={provider}
+                loading={false}
+              />
+            ))
+          )}
           <CloudflareCard
             cloudflare={snapshot?.cloudflare}
             fetchedAt={snapshot?.fetchedAt}
             loading={loading}
           />
-          <FreeTierCard limits={snapshot?.freeTier ?? null} />
+          <FreeTierCard
+            limits={snapshot?.freeTier ?? null}
+            sendProviders={snapshot?.sendProviders ?? null}
+          />
         </div>
       </ScrollArea>
     </div>

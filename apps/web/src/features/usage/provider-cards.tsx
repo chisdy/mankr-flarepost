@@ -9,7 +9,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import type { CloudflareErrorReason, UsageSnapshot } from "@/lib/types"
+import type {
+  CloudflareErrorReason,
+  SendProviderId,
+  SendProviderUsage,
+  UsageSnapshot,
+} from "@/lib/types"
 
 import { formatBytes, formatCount } from "./format"
 import { ProviderNotice } from "./provider-notice"
@@ -22,50 +27,74 @@ const CLOUDFLARE_ERROR_KEYS: Record<CloudflareErrorReason, string> = {
   unreachable: "usage.cloudflareErrorUnreachable",
 }
 
-export function ResendCard({
-  resend,
+/** Brand names are not translated, and the env var is what the setup hint must name. */
+export const SEND_PROVIDER_NAMES: Record<SendProviderId, string> = {
+  resend: "Resend",
+}
+
+const SEND_PROVIDER_ENV_VARS: Record<SendProviderId, string> = {
+  resend: "RESEND_API_KEY",
+}
+
+export function SendProviderCard({
+  usage,
   loading,
 }: {
-  resend: UsageSnapshot["resend"] | undefined
+  usage: SendProviderUsage | undefined
   loading: boolean
 }) {
   const { t } = useTranslation()
+  const name = usage ? SEND_PROVIDER_NAMES[usage.provider] : ""
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <PaperPlaneTiltIcon className="size-4 text-primary" />
-          {t("usage.resendTitle")}
+          {name || t("usage.sendTitle")}
         </CardTitle>
-        <CardDescription>{t("usage.resendHint")}</CardDescription>
+        <CardDescription>{t("usage.sendHint")}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
         {loading ? (
           <QuotaRingSkeleton count={2} />
-        ) : resend ? (
+        ) : usage ? (
           <>
             <ProviderNotice
-              status={resend.status}
-              notConfiguredHint={t("usage.resendNotConfigured")}
+              status={usage.status}
+              notConfiguredHint={t("usage.sendNotConfigured", {
+                envVar: SEND_PROVIDER_ENV_VARS[usage.provider],
+              })}
             />
-            {resend.status === "ok" && (
-              <div className="grid gap-6 sm:grid-cols-2">
-                <QuotaRing
-                  label={t("usage.resendDaily")}
-                  hint={t("usage.windowDay")}
-                  quota={resend.daily}
-                  color="var(--chart-1)"
-                  format={formatCount}
-                />
-                <QuotaRing
-                  label={t("usage.resendMonthly")}
-                  hint={t("usage.windowMonth")}
-                  quota={resend.monthly}
-                  color="var(--chart-2)"
-                  format={formatCount}
-                />
-              </div>
+            {usage.status === "ok" && (
+              <>
+                <div className="grid gap-6 sm:grid-cols-2">
+                  <QuotaRing
+                    label={t("usage.sendDaily")}
+                    hint={t("usage.windowDayUtc")}
+                    quota={usage.daily}
+                    color="var(--chart-1)"
+                    format={formatCount}
+                  />
+                  <QuotaRing
+                    label={t("usage.sendMonthly")}
+                    hint={t("usage.windowMonth")}
+                    quota={usage.monthly}
+                    color="var(--chart-2)"
+                    format={formatCount}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {usage.reported
+                    ? t("usage.sendReportedAt", {
+                        provider: name,
+                        value: new Date(
+                          usage.reported.capturedAt,
+                        ).toLocaleString(),
+                      })
+                    : t("usage.sendNoReportYet", { provider: name })}
+                </p>
+              </>
             )}
           </>
         ) : null}

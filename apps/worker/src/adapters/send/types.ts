@@ -4,6 +4,18 @@ export type SendErrorCode =
   | 'invalid_address'
   | 'provider_error'
 
+/** Identifies which service sent a message, so usage can be attributed per provider. */
+export type SendProviderId = 'resend'
+
+/**
+ * What the provider said about its own tally while accepting the message. A `null` window
+ * means it reported nothing for that window, which is different from reporting zero.
+ */
+export type ProviderQuotaReading = {
+  dailyUsed: number | null
+  monthlyUsed: number | null
+}
+
 export type SendInput = {
   from: string
   to: string[]
@@ -13,9 +25,17 @@ export type SendInput = {
   replyTo?: string
 }
 
-export type SendResult = { id?: string } | { error: SendErrorCode }
+export type SendSuccess = {
+  id?: string
+  /** Absent when the provider volunteered no quota figures with this response. */
+  quota?: ProviderQuotaReading
+}
+
+export type SendResult = SendSuccess | { error: SendErrorCode }
 
 export interface SendAdapter {
+  /** Which service this adapter speaks to; recorded against every send it makes. */
+  readonly provider: SendProviderId
   send(input: SendInput): Promise<SendResult>
 }
 

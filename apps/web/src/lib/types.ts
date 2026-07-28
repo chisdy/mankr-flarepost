@@ -142,10 +142,38 @@ export type CloudflareErrorReason =
   | "query_failed"
   | "unreachable"
 
+export type SendProviderId = "resend"
+
+/** A `null` window means the provider caps nothing there, not that the cap is zero. */
+export type SendProviderLimits = {
+  emailsPerDay: number | null
+  emailsPerMonth: number | null
+}
+
+/**
+ * Send quotas come from two sources that can each see what the other cannot: `reported` is
+ * the provider's own tally as of the last send it accepted, `observed` is what this app
+ * recorded itself. `daily`/`monthly` already reconcile the two.
+ */
+export type SendProviderUsage = {
+  provider: SendProviderId
+  status: ProviderStatus
+  limits: SendProviderLimits
+  daily: Quota | null
+  monthly: Quota | null
+  reported: {
+    dailyUsed: number | null
+    monthlyUsed: number | null
+    capturedAt: string
+  } | null
+  observed: {
+    daily: number
+    monthly: number
+  }
+}
+
 /** Sent by the worker so these allowances are defined in exactly one place. */
 export type FreeTierLimits = {
-  resendEmailsPerDay: number
-  resendEmailsPerMonth: number
   workersRequestsPerDay: number
   d1RowsReadPerDay: number
   d1RowsWrittenPerDay: number
@@ -156,11 +184,7 @@ export type FreeTierLimits = {
 export type UsageSnapshot = {
   fetchedAt: string
   freeTier: FreeTierLimits
-  resend: {
-    status: ProviderStatus
-    daily: Quota | null
-    monthly: Quota | null
-  }
+  sendProviders: SendProviderUsage[]
   cloudflare: {
     status: ProviderStatus
     reason: CloudflareErrorReason | null

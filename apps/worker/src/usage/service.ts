@@ -1,11 +1,31 @@
+import type { SendProviderId } from '../adapters/send'
 import type { Env } from '../env'
+import {
+  toQuota,
+  utcDate,
+  utcDayStart,
+  type ProviderStatus,
+  type Quota,
+} from './quota'
+import {
+  getSendProviderUsage,
+  SEND_PROVIDER_LIMITS,
+  type SendProviderUsage,
+} from './send-usage'
+
+export {
+  toQuota,
+  utcDate,
+  utcDayStart,
+  type ProviderStatus,
+  type Quota,
+  type QuotaWindow,
+} from './quota'
 
 /**
  * Free-plan ceilings. A Paid account's real limits are higher, so the UI must
  * label these as free-tier allowances rather than absolute remaining capacity.
  */
-export const RESEND_FREE_DAILY_EMAILS = 100
-export const RESEND_FREE_MONTHLY_EMAILS = 3_000
 export const WORKERS_FREE_REQUESTS_PER_DAY = 100_000
 export const D1_FREE_ROWS_READ_PER_DAY = 5_000_000
 export const D1_FREE_ROWS_WRITTEN_PER_DAY = 100_000
@@ -14,24 +34,7 @@ export const D1_FREE_STORAGE_BYTES = 5 * 1024 * 1024 * 1024
 /** Per-isolate best-effort cache; a cold start simply re-fetches. */
 export const USAGE_CACHE_TTL_MS = 60_000
 
-const RESEND_ENDPOINT = 'https://api.resend.com/emails?limit=1'
 const CLOUDFLARE_GRAPHQL_ENDPOINT = 'https://api.cloudflare.com/client/v4/graphql'
-
-export type QuotaWindow = 'day' | 'month' | 'total'
-export type ProviderStatus = 'ok' | 'not_configured' | 'error'
-
-export type Quota = {
-  used: number
-  limit: number
-  remaining: number
-  window: QuotaWindow
-}
-
-export type ResendUsage = {
-  status: ProviderStatus
-  daily: Quota | null
-  monthly: Quota | null
-}
 
 /**
  * Why a Cloudflare read failed. `unauthorized` almost always means the token is missing the
@@ -49,8 +52,6 @@ export type CloudflareUsage = {
 }
 
 export type FreeTierLimits = {
-  resendEmailsPerDay: number
-  resendEmailsPerMonth: number
   workersRequestsPerDay: number
   d1RowsReadPerDay: number
   d1RowsWrittenPerDay: number
@@ -59,8 +60,6 @@ export type FreeTierLimits = {
 
 /** Sent to the client so the UI never hardcodes a second copy of these numbers. */
 export const FREE_TIER_LIMITS: FreeTierLimits = {
-  resendEmailsPerDay: RESEND_FREE_DAILY_EMAILS,
-  resendEmailsPerMonth: RESEND_FREE_MONTHLY_EMAILS,
   workersRequestsPerDay: WORKERS_FREE_REQUESTS_PER_DAY,
   d1RowsReadPerDay: D1_FREE_ROWS_READ_PER_DAY,
   d1RowsWrittenPerDay: D1_FREE_ROWS_WRITTEN_PER_DAY,
@@ -70,36 +69,9 @@ export const FREE_TIER_LIMITS: FreeTierLimits = {
 export type UsageSnapshot = {
   fetchedAt: string
   freeTier: FreeTierLimits
-  resend: ResendUsage
+  /** One entry per sending service, so a second provider needs no shape change. */
+  sendProviders: SendProviderUsage[]
   cloudflare: CloudflareUsage
-}
-
-export function toQuota(used: number, limit: number, window: QuotaWindow): Quota {
-  const safeUsed = Math.max(0, Math.round(used))
-  return { used: safeUsed, limit, remaining: Math.max(0, limit - safeUsed), window }
-}
-
-/** A missing header means "unknown", never zero. */
-export function parseQuotaHeader(raw: string | null): number | null {
-  if (raw === null) return null
-  const trimmed = raw.trim()
-  if (!trimmed) return null
-  const value = Number(trimmed)
-  return Number.isFinite(value) ? value : null
-}
-
-export function utcDayStart(now: Date): string {
-  return `${now.toISOString().slice(0, 10)}T00:00:00Z`
-}
-
-export function utcDate(now: Date): string {
-  return now.toISOString().slice(0, 10)
-}
-
-const RESEND_UNCONFIGURED: ResendUsage = {
-  status: 'not_configured',
-  daily: null,
-  monthly: null,
 }
 
 const CLOUDFLARE_UNCONFIGURED: CloudflareUsage = {
@@ -111,32 +83,24 @@ const CLOUDFLARE_UNCONFIGURED: CloudflareUsage = {
   d1StorageBytes: null,
 }
 
-export async function fetchResendUsage(env: Pick<Env, 'RESEND_API_KEY'>): Promise<ResendUsage> {
-  const apiKey = env.RESEND_API_KEY?.trim()
-  if (!apiKey) return RESEND_UNCONFIGURED
-
-  try {
-    const res = await fetch(RESEND_ENDPOINT, {
-      headers: { Authorization: `Bearer ${apiKey}` },
-    })
-
-    // 429 still carries the quota headers, which is exactly what we want to read.
-    if (!res.ok && res.status !== 429) {
-      return { status: 'error', daily: null, monthly: null }
-    }
-
-    // Only free plans get the daily header; Paid accounts omit it.
-    const daily = parseQuotaHeader(res.headers.get('x-resend-daily-quota'))
-    const monthly = parseQuotaHeader(res.headers.get('x-resend-monthly-quota'))
-
-    return {
-      status: 'ok',
-      daily: daily === null ? null : toQuota(daily, RESEND_FREE_DAILY_EMAILS, 'day'),
-      monthly: monthly === null ? null : toQuota(monthly, RESEND_FREE_MONTHLY_EMAILS, 'month'),
-    }
-  } catch {
-    return { status: 'error', daily: null, monthly: null }
+/**
+ * Which env var proves a provider is usable. Resend has no usage endpoint to poll, so send
+ * figures come from D1 — see `send-usage.ts` — and this only decides configured vs not.
+ */
+function isSendProviderConfigured(env: Env, provider: SendProviderId): boolean {
+  switch (provider) {
+    case 'resend':
+      return Boolean(env.RESEND_API_KEY?.trim())
   }
+}
+
+export function fetchSendProviderUsage(env: Env, now: Date): Promise<SendProviderUsage[]> {
+  const providers = Object.keys(SEND_PROVIDER_LIMITS) as SendProviderId[]
+  return Promise.all(
+    providers.map((provider) =>
+      getSendProviderUsage(env.DB, provider, isSendProviderConfigured(env, provider), now),
+    ),
+  )
 }
 
 const WORKERS_QUERY = `query WorkersUsage($accountTag: string!, $start: Time, $end: Time) {
@@ -308,20 +272,20 @@ export async function getUsageSnapshot(env: Env, now = Date.now()): Promise<Usag
     return cached.snapshot
   }
 
-  const [resend, cloudflare] = await Promise.all([
-    fetchResendUsage(env),
+  const [sendProviders, cloudflare] = await Promise.all([
+    fetchSendProviderUsage(env, new Date(now)),
     fetchCloudflareUsage(env, new Date(now)),
   ])
 
   const snapshot: UsageSnapshot = {
     fetchedAt: new Date(now).toISOString(),
     freeTier: FREE_TIER_LIMITS,
-    resend,
+    sendProviders,
     cloudflare,
   }
 
   // Never pin a transient failure for a whole TTL.
-  if (resend.status !== 'error' && cloudflare.status !== 'error') {
+  if (cloudflare.status !== 'error') {
     cached = { at: now, snapshot }
   }
 

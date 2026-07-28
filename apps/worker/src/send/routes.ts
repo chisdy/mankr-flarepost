@@ -5,6 +5,7 @@ import type { Env } from '../env'
 import { jsonError } from '../http/errors'
 import type { AppVariables } from '../http/middleware'
 import { getMessage, insertOutboundMessage, deleteDraft } from '../messages/service'
+import { recordSendStatements } from '../usage/send-usage'
 import { checkRateLimit, incrementRateLimit } from './rate-limit'
 
 type SendEnv = { Bindings: Env; Variables: AppVariables }
@@ -112,6 +113,15 @@ export function registerSendRoutes(app: SendApp): void {
     }
 
     incrementRateLimit(alias.address)
+
+    // Recipients are billed individually, so the recipient count is the quota cost.
+    await c.env.DB.batch(
+      recordSendStatements(c.env.DB, {
+        provider: adapter.provider,
+        units: to.length,
+        quota: result.quota,
+      }),
+    )
 
     const stored = await insertOutboundMessage(c.env.DB, {
       aliasId: alias.id,

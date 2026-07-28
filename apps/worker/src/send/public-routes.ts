@@ -9,6 +9,7 @@ import { checkQuota, incrementQuotaStatement, pruneQuotaStatement } from '../api
 import type { Env } from '../env'
 import type { AppVariables } from '../http/middleware'
 import { requireApiKey } from '../http/middleware'
+import { recordSendStatements } from '../usage/send-usage'
 
 type PublicSendEnv = { Bindings: Env; Variables: AppVariables }
 type PublicSendApp = Hono<PublicSendEnv>
@@ -149,6 +150,12 @@ export function registerPublicSendRoutes(app: PublicSendApp): void {
           status: 'sent',
           providerMessageId: result.id ?? null,
         },
+        now,
+      ),
+      // Recipients are billed individually, so the recipient count is the quota cost.
+      ...recordSendStatements(
+        c.env.DB,
+        { provider: adapter.provider, units: to.length, quota: result.quota },
         now,
       ),
       pruneSendLogsStatement(c.env.DB, now),

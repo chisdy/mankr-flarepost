@@ -2,7 +2,15 @@ import type { Env } from '../../env'
 import { createResendSendAdapter } from './resend'
 import type { SendAdapter } from './types'
 
-export type { SendAdapter, SendErrorCode, SendInput, SendResult } from './types'
+export type {
+  ProviderQuotaReading,
+  SendAdapter,
+  SendErrorCode,
+  SendInput,
+  SendProviderId,
+  SendResult,
+  SendSuccess,
+} from './types'
 export { isSendError } from './types'
 
 /**

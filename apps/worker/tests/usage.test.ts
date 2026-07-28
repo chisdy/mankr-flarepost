@@ -2,17 +2,20 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createSessionCookie, SESSION_COOKIE_NAME } from '../src/auth/session'
 import type { Env } from '../src/env'
 import { createApp } from '../src/http/app'
+import { utcDayStartMs, utcMonthStartMs } from '../src/usage/quota'
+import {
+  getSendProviderUsage,
+  recordSendStatements,
+  SEND_EVENT_RETENTION_MS,
+  SEND_PROVIDER_LIMITS,
+} from '../src/usage/send-usage'
 import {
   D1_FREE_ROWS_READ_PER_DAY,
   D1_FREE_ROWS_WRITTEN_PER_DAY,
   D1_FREE_STORAGE_BYTES,
-  RESEND_FREE_DAILY_EMAILS,
-  RESEND_FREE_MONTHLY_EMAILS,
   WORKERS_FREE_REQUESTS_PER_DAY,
   fetchCloudflareUsage,
-  fetchResendUsage,
   getUsageSnapshot,
-  parseQuotaHeader,
   resetUsageCache,
   toQuota,
   utcDate,
@@ -25,8 +28,42 @@ afterEach(() => {
   resetUsageCache()
 })
 
-function resendResponse(headers: Record<string, string>, status = 200) {
-  return new Response(JSON.stringify({ data: [] }), { status, headers })
+type ReportRow = {
+  daily_used: number | null
+  monthly_used: number | null
+  captured_at: number
+}
+
+/** Answers only the two queries `send-usage.ts` issues, keyed by the window start it binds. */
+function usageDb(opts: { report?: ReportRow | null; unitsSince?: Record<number, number> }) {
+  const calls: { sql: string; args: unknown[] }[] = []
+
+  const db = {
+    prepare(sql: string) {
+      return {
+        bind(...args: unknown[]) {
+          calls.push({ sql, args })
+          return {
+            async first() {
+              if (sql.includes('provider_quota_reports')) return opts.report ?? null
+              if (sql.includes('send_usage_events')) {
+                return { units: opts.unitsSince?.[Number(args[1])] ?? 0 }
+              }
+              return null
+            },
+            async run() {
+              return { success: true }
+            },
+          }
+        },
+      }
+    },
+    async batch(statements: unknown[]) {
+      return statements.map(() => ({ success: true }))
+    },
+  } as unknown as D1Database
+
+  return { db, calls }
 }
 
 function graphqlResponse(account: Record<string, unknown>) {
@@ -52,104 +89,168 @@ describe('toQuota', () => {
   })
 })
 
-describe('parseQuotaHeader', () => {
-  it('returns null for a missing or non-numeric header', () => {
-    expect(parseQuotaHeader(null)).toBeNull()
-    expect(parseQuotaHeader('')).toBeNull()
-    expect(parseQuotaHeader('   ')).toBeNull()
-    expect(parseQuotaHeader('unlimited')).toBeNull()
-  })
-
-  it('parses numeric headers, including zero', () => {
-    expect(parseQuotaHeader('0')).toBe(0)
-    expect(parseQuotaHeader(' 42 ')).toBe(42)
-  })
-})
-
 describe('utc window helpers', () => {
   it('pins the start of the UTC day', () => {
     const now = new Date('2026-07-28T09:30:00.000Z')
     expect(utcDayStart(now)).toBe('2026-07-28T00:00:00Z')
     expect(utcDate(now)).toBe('2026-07-28')
   })
+
+  it('pins day and month starts in UTC regardless of the local zone', () => {
+    const now = new Date('2026-07-28T09:30:00.000Z')
+    expect(utcDayStartMs(now)).toBe(Date.parse('2026-07-28T00:00:00.000Z'))
+    expect(utcMonthStartMs(now)).toBe(Date.parse('2026-07-01T00:00:00.000Z'))
+  })
 })
 
-describe('fetchResendUsage', () => {
-  it('reports not_configured without an API key', async () => {
-    await expect(fetchResendUsage({})).resolves.toEqual({
+describe('recordSendStatements', () => {
+  const now = Date.parse('2026-07-28T09:30:00.000Z')
+
+  it('charges one unit per recipient and prunes events past the retention window', () => {
+    const { db, calls } = usageDb({})
+
+    const statements = recordSendStatements(db, { provider: 'resend', units: 3 }, now)
+
+    expect(statements).toHaveLength(2)
+    expect(calls[0].sql).toContain('INSERT INTO send_usage_events')
+    expect(calls[0].args.slice(1)).toEqual(['resend', 3, now])
+    expect(calls[1].sql).toContain('DELETE FROM send_usage_events')
+    expect(calls[1].args).toEqual([now - SEND_EVENT_RETENTION_MS])
+  })
+
+  it('never records a send as costing nothing', () => {
+    const { db, calls } = usageDb({})
+    recordSendStatements(db, { provider: 'resend', units: 0 }, now)
+    expect(calls[0].args[2]).toBe(1)
+  })
+
+  it('upserts the provider report only when the provider volunteered figures', () => {
+    const { db: quiet, calls: quietCalls } = usageDb({})
+    recordSendStatements(quiet, { provider: 'resend', units: 1 }, now)
+    expect(quietCalls.some((c) => c.sql.includes('provider_quota_reports'))).toBe(false)
+
+    const { db, calls } = usageDb({})
+    const statements = recordSendStatements(
+      db,
+      { provider: 'resend', units: 1, quota: { dailyUsed: 7, monthlyUsed: 42 } },
+      now,
+    )
+
+    expect(statements).toHaveLength(3)
+    const upsert = calls.find((c) => c.sql.includes('provider_quota_reports'))
+    expect(upsert?.args).toEqual(['resend', 7, 42, now])
+  })
+})
+
+describe('getSendProviderUsage', () => {
+  const now = new Date('2026-07-28T09:30:00.000Z')
+  const dayStart = utcDayStartMs(now)
+  const monthStart = utcMonthStartMs(now)
+  const limits = SEND_PROVIDER_LIMITS.resend
+  const dailyLimit = limits.emailsPerDay as number
+  const monthlyLimit = limits.emailsPerMonth as number
+
+  it('reports not_configured without touching the database', async () => {
+    const { db, calls } = usageDb({})
+
+    const usage = await getSendProviderUsage(db, 'resend', false, now)
+
+    expect(usage).toEqual({
+      provider: 'resend',
       status: 'not_configured',
+      limits,
       daily: null,
       monthly: null,
+      reported: null,
+      observed: { daily: 0, monthly: 0 },
     })
+    expect(calls).toHaveLength(0)
   })
 
-  it('maps quota headers against the free-tier limits', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      resendResponse({
-        'x-resend-daily-quota': '12',
-        'x-resend-monthly-quota': '340',
-      }),
-    )
-    vi.stubGlobal('fetch', fetchMock)
-
-    await expect(fetchResendUsage({ RESEND_API_KEY: 'rk_test' })).resolves.toEqual({
-      status: 'ok',
-      daily: { used: 12, limit: RESEND_FREE_DAILY_EMAILS, remaining: 88, window: 'day' },
-      monthly: {
-        used: 340,
-        limit: RESEND_FREE_MONTHLY_EMAILS,
-        remaining: 2_660,
-        window: 'month',
-      },
+  it('falls back to its own tally before the provider has reported anything', async () => {
+    const { db } = usageDb({
+      report: null,
+      unitsSince: { [dayStart]: 4, [monthStart]: 26 },
     })
 
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(url).toBe('https://api.resend.com/emails?limit=1')
-    expect(init.headers).toMatchObject({ Authorization: 'Bearer rk_test' })
-  })
+    const usage = await getSendProviderUsage(db, 'resend', true, now)
 
-  it('leaves the daily quota null when the header is absent, never zero', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(resendResponse({ 'x-resend-monthly-quota': '10' })),
-    )
-
-    const usage = await fetchResendUsage({ RESEND_API_KEY: 'rk_test' })
     expect(usage.status).toBe('ok')
-    expect(usage.daily).toBeNull()
-    expect(usage.monthly?.used).toBe(10)
+    expect(usage.reported).toBeNull()
+    expect(usage.observed).toEqual({ daily: 4, monthly: 26 })
+    expect(usage.daily).toEqual(toQuota(4, dailyLimit, 'day'))
+    expect(usage.monthly).toEqual(toQuota(26, monthlyLimit, 'month'))
   })
 
-  it('still reads quota headers off a 429', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(resendResponse({ 'x-resend-daily-quota': '100' }, 429)),
-    )
+  // The provider sees traffic this app never sent, so its larger figure has to win.
+  it('prefers the provider figure when it exceeds the local tally', async () => {
+    const { db } = usageDb({
+      report: { daily_used: 30, monthly_used: 300, captured_at: dayStart + 1_000 },
+      unitsSince: { [dayStart]: 2, [monthStart]: 5 },
+    })
 
-    const usage = await fetchResendUsage({ RESEND_API_KEY: 'rk_test' })
-    expect(usage.status).toBe('ok')
-    expect(usage.daily).toEqual({
-      used: 100,
-      limit: RESEND_FREE_DAILY_EMAILS,
-      remaining: 0,
-      window: 'day',
+    const usage = await getSendProviderUsage(db, 'resend', true, now)
+
+    expect(usage.daily?.used).toBe(30)
+    expect(usage.monthly?.used).toBe(300)
+    expect(usage.observed).toEqual({ daily: 2, monthly: 5 })
+    expect(usage.reported).toEqual({
+      dailyUsed: 30,
+      monthlyUsed: 300,
+      capturedAt: new Date(dayStart + 1_000).toISOString(),
     })
   })
 
-  it('reports error on an auth failure or a network throw', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('nope', { status: 401 })))
-    await expect(fetchResendUsage({ RESEND_API_KEY: 'rk_test' })).resolves.toEqual({
-      status: 'error',
-      daily: null,
-      monthly: null,
+  // And the local tally covers everything sent since that figure was captured.
+  it('prefers the local tally when it has moved past the provider figure', async () => {
+    const { db } = usageDb({
+      report: { daily_used: 3, monthly_used: 9, captured_at: dayStart + 1_000 },
+      unitsSince: { [dayStart]: 11, [monthStart]: 40 },
     })
 
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
-    await expect(fetchResendUsage({ RESEND_API_KEY: 'rk_test' })).resolves.toEqual({
-      status: 'error',
-      daily: null,
-      monthly: null,
+    const usage = await getSendProviderUsage(db, 'resend', true, now)
+
+    expect(usage.daily?.used).toBe(11)
+    expect(usage.monthly?.used).toBe(40)
+  })
+
+  it('ignores a stale report for the window it no longer describes', async () => {
+    // Captured yesterday: useless for today, still valid for this month.
+    const { db } = usageDb({
+      report: { daily_used: 90, monthly_used: 200, captured_at: dayStart - 1 },
+      unitsSince: { [dayStart]: 2, [monthStart]: 5 },
     })
+
+    const usage = await getSendProviderUsage(db, 'resend', true, now)
+
+    expect(usage.daily?.used).toBe(2)
+    expect(usage.monthly?.used).toBe(200)
+  })
+
+  it('ignores a report captured before this month entirely', async () => {
+    const { db } = usageDb({
+      report: { daily_used: 90, monthly_used: 2_900, captured_at: monthStart - 1 },
+      unitsSince: { [dayStart]: 1, [monthStart]: 6 },
+    })
+
+    const usage = await getSendProviderUsage(db, 'resend', true, now)
+
+    expect(usage.daily?.used).toBe(1)
+    expect(usage.monthly?.used).toBe(6)
+  })
+
+  // Paid plans omit the daily figure; that is unknown, not zero, so the local tally stands.
+  it('treats a null reported window as unknown rather than zero', async () => {
+    const { db } = usageDb({
+      report: { daily_used: null, monthly_used: 500, captured_at: dayStart + 1_000 },
+      unitsSince: { [dayStart]: 8, [monthStart]: 8 },
+    })
+
+    const usage = await getSendProviderUsage(db, 'resend', true, now)
+
+    expect(usage.daily?.used).toBe(8)
+    expect(usage.monthly?.used).toBe(500)
+    expect(usage.reported?.dailyUsed).toBeNull()
   })
 })
 
@@ -401,38 +502,53 @@ describe('fetchCloudflareUsage', () => {
 })
 
 describe('getUsageSnapshot', () => {
-  const baseEnv = { RESEND_API_KEY: 'rk_test' } as Env
+  const baseEnv = {
+    RESEND_API_KEY: 'rk_test',
+    CLOUDFLARE_ACCOUNT_ID: 'acc',
+    CLOUDFLARE_API_TOKEN: 'tok',
+    DB: usageDb({}).db,
+  } as Env
 
   it('serves a cached snapshot within the TTL and refetches after it', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValue(resendResponse({ 'x-resend-daily-quota': '1' }))
+      .mockResolvedValue(graphqlResponse({ workersInvocationsAdaptive: [{ sum: { requests: 1 } }] }))
     vi.stubGlobal('fetch', fetchMock)
 
     const first = await getUsageSnapshot(baseEnv, 1_000)
     const cached = await getUsageSnapshot(baseEnv, 30_000)
     expect(cached).toBe(first)
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    // Two GraphQL queries per snapshot: Workers and D1.
+    expect(fetchMock).toHaveBeenCalledTimes(2)
 
     await getUsageSnapshot(baseEnv, 1_000 + 60_001)
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenCalledTimes(4)
   })
 
   it('does not cache a failed fetch', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
 
     const first = await getUsageSnapshot(baseEnv, 1_000)
-    expect(first.resend.status).toBe('error')
+    expect(first.cloudflare.status).toBe('error')
 
     const second = await getUsageSnapshot(baseEnv, 2_000)
     expect(second).not.toBe(first)
   })
 
   it('stamps fetchedAt as an ISO timestamp', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(resendResponse({})))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(graphqlResponse({})))
 
     const snapshot = await getUsageSnapshot(baseEnv, Date.parse('2026-07-28T09:30:00.000Z'))
     expect(snapshot.fetchedAt).toBe('2026-07-28T09:30:00.000Z')
+  })
+
+  it('carries one entry per known sending provider', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(graphqlResponse({})))
+
+    const snapshot = await getUsageSnapshot(baseEnv, 1_000)
+    expect(snapshot.sendProviders.map((p) => p.provider)).toEqual(
+      Object.keys(SEND_PROVIDER_LIMITS),
+    )
   })
 })
 
@@ -440,7 +556,7 @@ describe('GET /api/usage', () => {
   const secret = 'test-secret-at-least-32-chars!!'
 
   const env = {
-    DB: {} as D1Database,
+    DB: usageDb({}).db,
     ASSETS: {} as Fetcher,
     COOKIES_SECRET: secret,
     EMAIL_DOMAIN: 'example.com',
@@ -465,10 +581,10 @@ describe('GET /api/usage', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as {
       fetchedAt: string
-      resend: { status: string }
+      sendProviders: { provider: string; status: string }[]
       cloudflare: { status: string }
     }
-    expect(body.resend.status).toBe('not_configured')
+    expect(body.sendProviders.every((p) => p.status === 'not_configured')).toBe(true)
     expect(body.cloudflare.status).toBe('not_configured')
     expect(Number.isNaN(Date.parse(body.fetchedAt))).toBe(false)
     expect(fetchMock).not.toHaveBeenCalled()
@@ -488,8 +604,6 @@ describe('GET /api/usage', () => {
 
     const body = (await res.json()) as { freeTier: Record<string, number> }
     expect(body.freeTier).toEqual({
-      resendEmailsPerDay: 100,
-      resendEmailsPerMonth: 3_000,
       workersRequestsPerDay: 100_000,
       d1RowsReadPerDay: 5_000_000,
       d1RowsWrittenPerDay: 100_000,

@@ -9,28 +9,42 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import type { FreeTierLimits } from "@/lib/types"
+import type { FreeTierLimits, SendProviderUsage } from "@/lib/types"
 
 import { formatBytes, formatCount } from "./format"
+import { SEND_PROVIDER_NAMES } from "./provider-cards"
 
-export function FreeTierCard({ limits }: { limits: FreeTierLimits | null }) {
+export function FreeTierCard({
+  limits,
+  sendProviders,
+}: {
+  limits: FreeTierLimits | null
+  sendProviders: SendProviderUsage[] | null
+}) {
   const { t } = useTranslation()
+
+  // Each provider brings its own allowances, so this table grows with the registry.
+  const sendGroups = (sendProviders ?? []).map((provider) => ({
+    title: SEND_PROVIDER_NAMES[provider.provider],
+    rows: [
+      provider.limits.emailsPerDay === null
+        ? null
+        : {
+            value: formatCount(provider.limits.emailsPerDay),
+            label: t("usage.limitEmailsPerDay"),
+          },
+      provider.limits.emailsPerMonth === null
+        ? null
+        : {
+            value: formatCount(provider.limits.emailsPerMonth),
+            label: t("usage.limitEmailsPerMonth"),
+          },
+    ].filter((row): row is { value: string; label: string } => row !== null),
+  }))
 
   const groups = limits
     ? [
-        {
-          title: "Resend",
-          rows: [
-            {
-              value: formatCount(limits.resendEmailsPerDay),
-              label: t("usage.limitEmailsPerDay"),
-            },
-            {
-              value: formatCount(limits.resendEmailsPerMonth),
-              label: t("usage.limitEmailsPerMonth"),
-            },
-          ],
-        },
+        ...sendGroups,
         {
           title: "Cloudflare Workers",
           rows: [

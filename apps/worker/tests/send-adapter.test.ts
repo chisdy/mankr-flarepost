@@ -54,6 +54,65 @@ describe('resend send adapter', () => {
     })
   })
 
+  // A successful send is the only response that carries these headers, which is why the
+  // usage page depends on capturing them here rather than polling for them.
+  it('captures the quota figures Resend attaches to a successful send', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ id: 're_123' }), {
+          status: 200,
+          headers: {
+            'x-resend-daily-quota': '12',
+            'x-resend-monthly-quota': '340',
+          },
+        }),
+      ),
+    )
+
+    const adapter = createResendSendAdapter({ RESEND_API_KEY: 'rk_test' })
+    await expect(adapter.send(baseInput)).resolves.toEqual({
+      id: 're_123',
+      quota: { dailyUsed: 12, monthlyUsed: 340 },
+    })
+  })
+
+  it('leaves a window null when only the other one is reported', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ id: 're_123' }), {
+          status: 200,
+          // Paid plans omit the daily header entirely.
+          headers: { 'x-resend-monthly-quota': '7' },
+        }),
+      ),
+    )
+
+    const adapter = createResendSendAdapter({ RESEND_API_KEY: 'rk_test' })
+    await expect(adapter.send(baseInput)).resolves.toEqual({
+      id: 're_123',
+      quota: { dailyUsed: null, monthlyUsed: 7 },
+    })
+  })
+
+  it('omits quota entirely when the headers are absent or unparsable', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'a' }), { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: 'b' }), {
+          status: 200,
+          headers: { 'x-resend-daily-quota': 'unlimited' },
+        }),
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const adapter = createResendSendAdapter({ RESEND_API_KEY: 'rk_test' })
+    await expect(adapter.send(baseInput)).resolves.toEqual({ id: 'a' })
+    await expect(adapter.send(baseInput)).resolves.toEqual({ id: 'b' })
+  })
+
   it('maps 422 to invalid_address and 5xx to provider_error', async () => {
     const fetchMock = vi
       .fn()
@@ -119,6 +178,7 @@ describe('POST /api/messages/send', () => {
     const run = opts.insertRun ?? vi.fn().mockResolvedValue({ meta: { changes: 1 }, success: true })
     const bind = vi.fn().mockReturnValue({ first, run })
     const prepare = vi.fn().mockReturnValue({ bind })
+    const batch = vi.fn().mockResolvedValue([])
 
     first.mockImplementation(async () => {
       const sql = String(prepare.mock.calls[prepare.mock.calls.length - 1]?.[0] ?? '')
@@ -127,11 +187,12 @@ describe('POST /api/messages/send', () => {
       return null
     })
 
-    return { prepare, bind, first, run } as unknown as D1Database & {
+    return { prepare, bind, first, run, batch } as unknown as D1Database & {
       prepare: ReturnType<typeof vi.fn>
       bind: ReturnType<typeof vi.fn>
       first: ReturnType<typeof vi.fn>
       run: ReturnType<typeof vi.fn>
+      batch: ReturnType<typeof vi.fn>
     }
   }
 
@@ -310,5 +371,61 @@ describe('POST /api/messages/send', () => {
     expect(insertBind).toBeTruthy()
     expect(insertBind?.[10]).toBe(0) // has_unsupported_attachments
     expect(insertBind?.[11]).toBe('re_ok')
+  })
+
+  it('records the send against the provider, one unit per recipient', async () => {
+    const db = mockDb({
+      alias: {
+        id: 'a1',
+        address: 'me@example.com',
+        enabled: 1,
+        is_default: 1,
+        created_at: 1,
+      },
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ id: 're_ok' }), {
+          status: 200,
+          headers: { 'x-resend-daily-quota': '5', 'x-resend-monthly-quota': '50' },
+        }),
+      ),
+    )
+
+    const env = {
+      DB: db,
+      ASSETS: {} as Fetcher,
+      COOKIES_SECRET: secret,
+      EMAIL_DOMAIN: 'example.com',
+      RESEND_API_KEY: 'rk',
+    } satisfies Env
+
+    const res = await createApp().request(
+      'http://localhost/api/messages/send',
+      {
+        method: 'POST',
+        headers: {
+          Cookie: await authedCookie(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fromAliasId: 'a1',
+          to: ['one@example.com', 'two@example.com'],
+          subject: 'Hi',
+          text: 'Hello',
+        }),
+      },
+      env,
+    )
+    expect(res.status).toBe(200)
+
+    const eventBind = db.bind.mock.calls.find((c) => c[1] === 'resend' && c[2] === 2)
+    expect(eventBind).toBeTruthy()
+
+    // The figures Resend just reported are stored alongside the event.
+    const reportBind = db.bind.mock.calls.find((c) => c[0] === 'resend' && c[1] === 5)
+    expect(reportBind?.[2]).toBe(50)
+    expect(db.batch).toHaveBeenCalled()
   })
 })
