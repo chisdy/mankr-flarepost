@@ -98,6 +98,7 @@ function SidebarNav({ onNavigate, tags, counts }: SidebarNavProps) {
   return (
     <>
       <Button
+        variant="glass"
         render={<Link to="/compose" onClick={onNavigate} />}
         nativeButton={false}
         className="w-full"
@@ -353,6 +354,7 @@ export function AppShell() {
           </div>
           <Button
             type="button"
+            variant="glass"
             size="icon-sm"
             aria-label={t("nav.compose")}
             render={<Link to="/compose" />}

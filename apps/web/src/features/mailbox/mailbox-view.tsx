@@ -13,6 +13,7 @@ import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   OnboardingBanner,
   OnboardingGuide,
@@ -21,6 +22,42 @@ import { api, isApiError } from "@/lib/api"
 import { formatMessageTime } from "@/lib/format"
 import type { Folder, MailboxViewMode, MessageListItem, Tag } from "@/lib/types"
 import { cn } from "@/lib/utils"
+
+function MessageListSkeleton({
+  count = 8,
+  label,
+  showStar = true,
+}: {
+  count?: number
+  label: string
+  showStar?: boolean
+}) {
+  return (
+    <ul
+      className="divide-y divide-border"
+      aria-busy="true"
+      aria-live="polite"
+      aria-label={label}
+    >
+      {Array.from({ length: count }, (_, index) => (
+        <li key={index}>
+          <div className="flex items-stretch gap-1 px-2 sm:px-4">
+            {showStar ? (
+              <Skeleton className="mt-2.5 size-8 shrink-0 rounded-lg" />
+            ) : null}
+            <div className="flex min-w-0 flex-1 flex-col gap-2 py-3 sm:flex-row sm:items-baseline sm:gap-3 sm:px-2">
+              <div className="flex min-w-0 items-baseline justify-between gap-3 sm:contents">
+                <Skeleton className="h-4 w-28 sm:w-40 sm:shrink-0" />
+                <Skeleton className="h-3 w-12 sm:order-last" />
+              </div>
+              <Skeleton className="h-4 w-full max-w-md sm:flex-1" />
+            </div>
+          </div>
+        </li>
+      ))}
+    </ul>
+  )
+}
 
 function modeFromLocation(
   pathname: string,
@@ -355,9 +392,10 @@ export function MailboxView() {
 
       <ScrollArea className="min-h-0 flex-1">
         {loading ? (
-          <p className="px-6 py-8 text-sm text-muted-foreground">
-            {t("app.loading")}
-          </p>
+          <MessageListSkeleton
+            label={t("app.loading")}
+            showStar={folder !== "draft"}
+          />
         ) : items.length === 0 ? (
           showEmptyOnboarding ? (
             <div className="mx-auto flex max-w-lg flex-col gap-4 px-6 py-10">

@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Tooltip,
   TooltipContent,
@@ -31,6 +32,58 @@ import { api, isApiError } from "@/lib/api"
 import { formatFullTime } from "@/lib/format"
 import { sanitize } from "@/lib/sanitize"
 import type { MessageDetail, Tag } from "@/lib/types"
+
+function MessageDetailSkeleton({ label }: { label: string }) {
+  return (
+    <div
+      className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden"
+      aria-busy="true"
+      aria-live="polite"
+      aria-label={label}
+    >
+      <PageHeader
+        leading={<Skeleton className="size-8 rounded-lg" />}
+        actions={
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-8 w-20 rounded-lg" />
+            <Skeleton className="h-8 w-24 rounded-lg" />
+            <Skeleton className="h-8 w-20 rounded-lg" />
+          </div>
+        }
+      />
+
+      <ScrollArea className="min-h-0 flex-1">
+        <article className="flex w-full flex-col gap-5 px-4 py-6 pb-24 sm:px-8">
+          <div className="flex flex-col gap-3">
+            <Skeleton className="h-8 w-3/4 max-w-xl sm:h-9" />
+            <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+              <Skeleton className="h-4 w-64 max-w-full" />
+              <Skeleton className="h-4 w-36" />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Skeleton className="h-6 w-14 rounded-full" />
+              <Skeleton className="h-6 w-16 rounded-full" />
+              <Skeleton className="h-6 w-20 rounded-full" />
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="flex flex-col gap-3">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-[92%]" />
+            <Skeleton className="h-4 w-[88%]" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-[70%]" />
+            <Skeleton className="mt-2 h-4 w-full" />
+            <Skeleton className="h-4 w-[85%]" />
+            <Skeleton className="h-4 w-[60%]" />
+          </div>
+        </article>
+      </ScrollArea>
+    </div>
+  )
+}
 
 export function MessageView() {
   const { t, i18n } = useTranslation()
@@ -163,11 +216,7 @@ export function MessageView() {
   }
 
   if (loading || !message) {
-    return (
-      <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">
-        {t("message.loading")}
-      </div>
-    )
+    return <MessageDetailSkeleton label={t("message.loading")} />
   }
 
   const backTo =
