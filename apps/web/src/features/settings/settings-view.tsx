@@ -40,6 +40,7 @@ import { ChangePasswordDialog } from "@/features/auth/change-password-dialog"
 import { AliasesSettings } from "@/features/settings/aliases-settings"
 import { ApiKeysSettings } from "@/features/settings/api-keys-settings"
 import { RetentionSettings } from "@/features/settings/retention-settings"
+import { SendProvidersSettings } from "@/features/settings/send-providers-settings"
 import { TagsFiltersSettings } from "@/features/settings/tags-filters-settings"
 import { api, isApiError } from "@/lib/api"
 import type { Alias, AuthUser } from "@/lib/types"
@@ -327,6 +328,7 @@ export function SettingsView() {
                   loading={aliasesLoading}
                   onAliasesChange={setAliases}
                 />
+                <SendProvidersSettings />
                 <RetentionSettings />
               </div>
             )}

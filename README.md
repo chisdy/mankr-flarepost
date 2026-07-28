@@ -17,7 +17,7 @@
 | 标签 | 最多 **50** 个；侧栏可按标签浏览 |
 | 过滤器 | 仅对新入站邮件按优先级叠加执行 |
 | 写信 | TipTap 极简富文本；草稿约 1.5s 自动保存 |
-| 发信 | 只走 **Resend**（免费层，无需信用卡），需设置 `RESEND_API_KEY` 并在 Resend 侧验证发信域。Cloudflare Email Sending 发往任意收件人需 Workers Paid，故未采用 |
+| 发信 | **Resend / Brevo / Maileroo** 三选一（免费层）；密钥可加密存库（设置 → 邮件）或回退 Worker Secret。需在所选平台验证发信域。Cloudflare Email Sending 发往任意收件人需 Workers Paid，故未采用 |
 
 完整部署步骤见 **[docs/DEPLOY.md](./docs/DEPLOY.md)**。
 
@@ -32,8 +32,8 @@
 部署完成后务必：
 
 1. **D1 + migrations：** `pnpm deploy` 会依次 `db:ensure`（解析/创建 D1 → `wrangler.deploy.toml`）、远程 migrations、再 `wrangler deploy`。仓库里提交的全零 `database_id` 只服务于一键部署，**部署链路不会使用它**。若 Cloudflare 的构建配置里 Deploy 命令不是 `pnpm run deploy`，迁移与新版本都不会上线
-2. 设置 Secret：`COOKIES_SECRET` 与 `RESEND_API_KEY`（均必填）
-3. 设置变量：`EMAIL_DOMAIN`
+2. 设置 Secret：`COOKIES_SECRET`（必填）；发信密钥可在设置页加密入库，或设置 `RESEND_API_KEY` / `BREVO_API_KEY` / `MAILEROO_API_KEY` 之一作为回退
+3. 设置变量：`EMAIL_DOMAIN`（可选 `SEND_PROVIDER`）
 4. 按 [部署清单](./docs/DEPLOY.md#部署后清单) 配置 Email Routing、打开 `/setup`、创建别名并测收发
 
 ## 国际化

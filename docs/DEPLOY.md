@@ -12,13 +12,22 @@
 
 所有配置项**都在 Cloudflare 侧设置，仓库里一个都不存**。
 
-必填三项，收发信缺一不可：
+必填两项，收信与登录缺一不可；发信另需配置活动平台密钥（设置页加密入库或对应 Worker Secret）：
 
 | 名称 | 类型 | 设置位置 | 说明 |
 |------|------|----------|------|
 | `EMAIL_DOMAIN` | 明文变量 | Dashboard（或 `wrangler secret put` 之外的 Text 类型） | 你的邮件域名，别名后缀 |
-| `COOKIES_SECRET` | Secret | `wrangler secret put` 或 Dashboard | 会话签名密钥 |
-| `RESEND_API_KEY` | Secret | `wrangler secret put` 或 Dashboard | 发信凭证 |
+| `COOKIES_SECRET` | Secret | `wrangler secret put` 或 Dashboard | 会话签名 + 加密库内发信密钥 |
+
+发信密钥（至少为活动平台配一条；库优先，env 回退）：
+
+| 名称 | 类型 | 设置位置 | 说明 |
+|------|------|----------|------|
+| （推荐）设置 → 邮件 | 加密存 D1 | Web UI | Resend / Brevo / Maileroo 的 API Key |
+| `RESEND_API_KEY` | Secret | `wrangler secret put` 或 Dashboard | Resend 回退 |
+| `BREVO_API_KEY` | Secret | 同上 | Brevo 回退 |
+| `MAILEROO_API_KEY` | Secret | 同上 | Maileroo 回退 |
+| `SEND_PROVIDER` | 明文变量 | Dashboard 或 `.dev.vars` | 可选：`resend` / `brevo` / `maileroo`；设置页未选活动平台时生效 |
 
 可选两项，只影响 `/usage`「用量」页里的 Cloudflare 卡片，不配就显示「未配置」，收发信照常：
 
@@ -27,9 +36,11 @@
 | `CLOUDFLARE_ACCOUNT_ID` | 明文变量 | Dashboard 或 `.dev.vars` | 账号 ID，`npx wrangler whoami` 可查 |
 | `CLOUDFLARE_API_TOKEN` | Secret | `wrangler secret put` 或 Dashboard | 只读用量 token，权限见步骤 6 |
 
-两项**缺一即视为未配置**，不会拿半套凭证去打接口。发信额度那张卡不需要任何额外配置：`RESEND_API_KEY` 用**只给发信权限的受限键**就够，配额是在发信时顺带记下的——详见步骤 6 的方式 C。
+两项**缺一即视为未配置**，不会拿半套凭证去打接口。发信额度卡片按已注册平台展示：有库内密钥或对应 env 即视为已配置；Resend 成功响应里的配额头仍会记入 D1。
 
-必填三项由 **步骤 6** 统一设置，`wrangler.toml` 里不含任何一个——这是公开仓库，域名写进 `[vars]` 会跟着每个 fork 跑。仓库里有 `keep_vars = true`，所以 `wrangler deploy` 不会覆盖你在 Dashboard 里设的明文变量（Secret 本来就不会被覆盖）。
+`EMAIL_DOMAIN` 与 `COOKIES_SECRET` 由 **步骤 6** 统一设置，`wrangler.toml` 里不含域名——这是公开仓库，域名写进 `[vars]` 会跟着每个 fork 跑。仓库里有 `keep_vars = true`，所以 `wrangler deploy` 不会覆盖你在 Dashboard 里设的明文变量（Secret 本来就不会被覆盖）。
+
+轮换 `COOKIES_SECRET` 后，库内已加密的发信密钥将无法解密（发信会回退到 env）；需在设置页重新填写密钥。
 
 本地开发是另一套：这些值都写在 `.dev.vars` 里，该文件已被 gitignore。
 
@@ -41,7 +52,7 @@
 |----|------|
 | Cloudflare 账号 | 免费账号即可，**不需要**绑卡 |
 | 域名 | DNS 必须托管在 Cloudflare（Email Routing 依赖） |
-| Resend 账号 | 免费层，[resend.com](https://resend.com) 注册，不需要绑卡 |
+| 发信平台账号 | Resend / Brevo / Maileroo 任一免费层即可（验证发信域） |
 | Node.js | ≥ 22.12 |
 | pnpm | 11.17.0（仓库 `packageManager` 已钉扎） |
 
@@ -135,13 +146,13 @@ pnpm run deploy
 
 ## 步骤 6：设置环境变量
 
-登录、发信、别名后缀分别依赖这三个必填值，全部在 Cloudflare 侧设置：
+登录与别名后缀依赖下列必填值；发信密钥可在此设 Worker Secret，或部署后在 **设置 → 邮件** 加密入库：
 
 | 名称 | 类型 | 值 |
 |------|------|-----|
-| `COOKIES_SECRET` | Secret | `openssl rand -hex 32` 的输出 |
-| `RESEND_API_KEY` | Secret | Resend 的 `re_` 开头 key（步骤 7 才拿得到，可以回头再设） |
+| `COOKIES_SECRET` | Secret | `openssl rand -hex 32` 的输出（会话签名 + 加密库内发信密钥） |
 | `EMAIL_DOMAIN` | 明文 / Text | 你的域名，如 `example.com`，不带 `@`、不带子域前缀 |
+| `RESEND_API_KEY` 等 | Secret（可选） | 对应平台 API Key；也可只在设置页保存 |
 
 `EMAIL_DOMAIN` 决定别名后缀：设成 `example.com`，别名就是 `you@example.com`。
 
@@ -153,6 +164,7 @@ openssl rand -hex 32          # 先生成会话密钥，复制输出
 npx wrangler secret put COOKIES_SECRET
 # 粘贴刚才那串 64 位十六进制，回车
 
+# 可选：env 回退（也可用设置页代替）
 npx wrangler secret put RESEND_API_KEY
 # 粘贴 re_ 开头的 key，回车
 ```
@@ -165,7 +177,7 @@ npx wrangler secret put RESEND_API_KEY
 npx wrangler secret list
 ```
 
-应列出这两个名字（不显示值）。
+应至少列出 `COOKIES_SECRET`（不显示值）。
 
 `EMAIL_DOMAIN` 不是 Secret，命令行没有对应的 put 子命令，用下面的 Dashboard 方式设置。
 
@@ -177,8 +189,8 @@ npx wrangler secret list
 4. 顶部切到 **Settings** 标签
 5. 找到 **Variables and Secrets** 这一节
 6. 点 **Add**，按上面表格逐个添加：
-   - `COOKIES_SECRET` 和 `RESEND_API_KEY` → **Type** 选 **Secret**
-   - `EMAIL_DOMAIN` → **Type** 选 **Text**（明文，它不是密钥）
+   - `COOKIES_SECRET`（以及可选的 `RESEND_API_KEY` / `BREVO_API_KEY` / `MAILEROO_API_KEY`）→ **Type** 选 **Secret**
+   - `EMAIL_DOMAIN`（可选 `SEND_PROVIDER`）→ **Type** 选 **Text**（明文，它不是密钥）
 7. 每加完一个点 **Deploy** / **Save** 保存
 
 > 找不到 **Variables and Secrets**？说明 Worker 还没部署成功过——先做完步骤 5。
@@ -187,7 +199,7 @@ npx wrangler secret list
 
 ### 方式 C：可选——打开「用量」页的 Cloudflare 卡片
 
-`/usage` 页展示免费额度的消耗情况。发信额度那张卡复用 `RESEND_API_KEY`，不用额外配；Cloudflare 那张卡需要再加两个值，不加就显示「未配置」，收发信不受影响。
+`/usage` 页展示免费额度的消耗情况。发信额度按已注册平台（Resend / Brevo / Maileroo）各出一张卡，有库内密钥或对应 env 即显示已配置；Cloudflare 那张卡需要再加两个值，不加就显示「未配置」，收发信不受影响。
 
 1. 拿 Account ID：
 
@@ -214,21 +226,19 @@ npx wrangler secret put CLOUDFLARE_API_TOKEN
 
 **验证：** 部署后登录，打开 `/usage`，Cloudflare 卡片应显示 Worker 请求数与 D1 读写行数的环形图，而不是「未配置」。
 
-**发信额度那张卡是怎么来的：** Resend 没有查用量的接口，配额只出现在**发信成功**那次响应的 `x-resend-daily-quota` / `x-resend-monthly-quota` 头里。所以每次发信时会把这两个数字连同时间戳存进 D1，同时本站也自己按收件人数记一份账，展示时取两者的较大值——Resend 的数字能覆盖本站看不见的流量（比如同一账号被别的程序用了），本站的账则覆盖上次报告之后新发的信。
+**发信额度那张卡是怎么来的：** Resend 没有查用量的接口，配额只出现在**发信成功**那次响应的 `x-resend-daily-quota` / `x-resend-monthly-quota` 头里。所以每次发信时会把这两个数字连同时间戳存进 D1，同时本站也自己按收件人数记一份账，展示时取两者的较大值。Brevo / Maileroo 无此类响应头，仅用本站 observed 计数。
 
-这带来两个好处：`RESEND_API_KEY` 用只给发信权限的受限键就行，不必为了看用量换成全权限密钥；而且刚部署、还没发过信时卡片也不会空着，本站自己的计数从第一封起就有数。
-
-> 页面上的上限值写死的是**免费计划**额度（Workers 10 万请求/天、D1 500 万行读/天、10 万行写/天、5 GB 存储；Resend 100 封/天、3000 封/月）。升级到付费计划后真实上限更高，页面数字只应看作免费额度的参考。
+> 页面上的上限值写死的是**免费计划**额度（Workers 10 万请求/天、D1 500 万行读/天、10 万行写/天、5 GB 存储；Resend 100/天·3000/月；Brevo 300/天·9000/月；Maileroo 3000/月）。升级到付费计划后真实上限更高，页面数字只应看作免费额度的参考。
 >
-> 每日额度头只对免费账号返回，Paid 账号那一栏由本站自己的计数兜底。
+> 每日额度头只对 Resend 免费账号返回，Paid 账号那一栏由本站自己的计数兜底。
 >
-> Resend 官方文档说「收发信都计入配额」，指的是它自己的收信服务；本项目收信走 Cloudflare Email Routing，不经过 Resend，所以不占这份额度。
+> 本项目收信走 Cloudflare Email Routing，不经过发信平台，所以不占发信平台的收信配额。
 
 ---
 
-## 步骤 7：在 Resend 拿 API Key 并验证域名
+## 步骤 7：在发信平台拿 API Key 并验证域名
 
-发信的发件人地址就是你的别名地址（`you@EMAIL_DOMAIN`），所以 Resend 必须先验证**整个域名**，否则发信会被拒。
+发信的发件人地址就是你的别名地址（`you@EMAIL_DOMAIN`），所以所选平台必须先验证**整个域名**，否则发信会被拒。以下以 **Resend** 为例（Brevo / Maileroo 步骤类似：添加域名 → 加 SPF/DKIM TXT → 验证 → 创建 API Key）：
 
 1. 注册并登录 [resend.com](https://resend.com)
 2. 左侧 **Domains** → **Add Domain** → 填入你的 `EMAIL_DOMAIN`（例如 `example.com`）
@@ -240,9 +250,9 @@ npx wrangler secret put CLOUDFLARE_API_TOKEN
 5. 左侧 **API Keys** → **Create API Key**
    - 权限选 **Sending access**
    - 创建后 `re_` 开头的完整 key **只显示这一次**，立刻复制
-6. 回到步骤 6，把这个 key 设成 `RESEND_API_KEY`
+6. 把这个 key 设成 `RESEND_API_KEY`（步骤 6），**或**登录后打开 **设置 → 邮件**，选中 Resend 并粘贴保存（加密入库）
 
-> Resend 的 MX 记录和 Cloudflare Email Routing 的 MX 记录可能冲突。收信靠 Cloudflare Email Routing，所以**以 Email Routing 的 MX 为准**；Resend 只负责发信，通常只需要 DKIM/SPF 的 TXT 记录就能验证通过。
+> 平台给出的 MX 记录和 Cloudflare Email Routing 的 MX 记录可能冲突。收信靠 Cloudflare Email Routing，所以**以 Email Routing 的 MX 为准**；发信平台通常只需要 DKIM/SPF 的 TXT 记录就能验证通过。
 
 ---
 
@@ -302,8 +312,8 @@ npx wrangler secret put CLOUDFLARE_API_TOKEN
 
 | 错误码 | HTTP | 含义与处理 |
 |--------|------|------------|
-| `not_configured` | 502 | `RESEND_API_KEY` 没设或为空 → 回步骤 6 |
-| `invalid_address` | 400 | 发件域没在 Resend 验证通过，或收件地址格式不对 → 回步骤 7 |
+| `not_configured` | 502 | 活动发信平台未配置 API Key → 设置 → 邮件，或回步骤 6/7 |
+| `invalid_address` | 400 | 发件域没在所选平台验证通过，或收件地址格式不对 → 回步骤 7 |
 | `provider_error` | 502 | Resend 侧失败（配额、服务异常）→ 去 Resend 后台看日志 |
 | `rate_limited` | 429 | 应用内限流，每个别名每小时 30 封 |
 
@@ -332,7 +342,7 @@ pnpm run db:migrate:remote
 ## 本地开发
 
 ```bash
-cp .dev.vars.example .dev.vars   # 填入 COOKIES_SECRET、RESEND_API_KEY、EMAIL_DOMAIN
+cp .dev.vars.example .dev.vars   # 填入 COOKIES_SECRET、EMAIL_DOMAIN；发信密钥可填 RESEND_API_KEY 等
 pnpm run db:migrate:local
 pnpm dev
 ```
@@ -359,7 +369,7 @@ curl -s https://<你的域名>/ | grep -o 'index-[^"]*\.js'
 管理员已存在，去 `/login`。忘记密码只能用 `wrangler d1 execute` 直接操作数据库重置。
 
 **能收不能发。**
-按步骤 11 的错误码表定位，九成是 `RESEND_API_KEY` 没设或 Resend 域名没验证。
+按步骤 11 的错误码表定位，九成是发信平台密钥未配或域名没验证。
 
 **能发不能收。**
 检查三件事：Email Routing 的 catch-all 规则是否指向 Worker 且已启用；`/aliases` 里对应别名是否存在且启用；别名后缀是否等于 `EMAIL_DOMAIN`。

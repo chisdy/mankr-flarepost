@@ -42,7 +42,8 @@ const ERROR_MESSAGE: Record<keyof typeof ERROR_STATUS, string> = {
   unauthorized: 'Missing or invalid API key.',
   invalid_address: 'Invalid sender or recipient address.',
   quota_exceeded: 'API key send quota exceeded.',
-  not_configured: 'Outbound mail is not configured. Set the RESEND_API_KEY secret.',
+  not_configured:
+    'Outbound mail is not configured. Set a provider API key in Settings or as a Worker secret.',
   provider_error: 'Email provider failed to send the message.',
 }
 
@@ -101,7 +102,7 @@ export function registerPublicSendRoutes(app: PublicSendApp): void {
       return publicSendError(c, 'quota_exceeded')
     }
 
-    const adapter = getSendAdapter(c.env)
+    const adapter = await getSendAdapter(c.env)
     const result = await adapter.send({
       from: apiKey.aliasAddress,
       to,

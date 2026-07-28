@@ -8,6 +8,7 @@ import { registerMailboxSettingsRoutes } from '../mailbox-settings/routes'
 import { registerMessageRoutes } from '../messages/routes'
 import { registerPublicSendRoutes } from '../send/public-routes'
 import { registerSendRoutes } from '../send/routes'
+import { registerSendProviderRoutes } from '../send-providers/routes'
 import { registerTagRoutes } from '../tags/routes'
 import { registerUsageRoutes } from '../usage/routes'
 import { jsonError } from './errors'
@@ -29,6 +30,7 @@ export function createApp() {
   registerFilterRoutes(app)
   registerUsageRoutes(app)
   registerMailboxSettingsRoutes(app)
+  registerSendProviderRoutes(app)
   // Send before message :id routes so /api/messages/send is unambiguous
   registerSendRoutes(app)
   registerMessageRoutes(app)

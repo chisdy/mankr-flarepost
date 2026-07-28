@@ -174,7 +174,7 @@ export function ApiKeysSettings({ aliases }: { aliases: Alias[] }) {
             {t("apiKeys.title")}
           </CardTitle>
           <CardDescription>
-            {t("apiKeys.hint")} {t("apiKeys.resendRequired")}
+            {t("apiKeys.hint")} {t("apiKeys.providerRequired")}
           </CardDescription>
           <CardAction>
             <Button

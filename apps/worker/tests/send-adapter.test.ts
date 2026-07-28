@@ -21,7 +21,7 @@ afterEach(() => {
 
 describe('resend send adapter', () => {
   it('returns not_configured without API key', async () => {
-    const adapter = createResendSendAdapter({})
+    const adapter = createResendSendAdapter('')
     await expect(adapter.send(baseInput)).resolves.toEqual({ error: 'not_configured' })
   })
 
@@ -31,7 +31,7 @@ describe('resend send adapter', () => {
     )
     vi.stubGlobal('fetch', fetchMock)
 
-    const adapter = createResendSendAdapter({ RESEND_API_KEY: 'rk_test' })
+    const adapter = createResendSendAdapter('rk_test')
     await expect(
       adapter.send({ ...baseInput, html: '<b>x</b>', replyTo: 'r@example.com' }),
     ).resolves.toEqual({ id: 're_123' })
@@ -70,7 +70,7 @@ describe('resend send adapter', () => {
       ),
     )
 
-    const adapter = createResendSendAdapter({ RESEND_API_KEY: 'rk_test' })
+    const adapter = createResendSendAdapter('rk_test')
     await expect(adapter.send(baseInput)).resolves.toEqual({
       id: 're_123',
       quota: { dailyUsed: 12, monthlyUsed: 340 },
@@ -89,7 +89,7 @@ describe('resend send adapter', () => {
       ),
     )
 
-    const adapter = createResendSendAdapter({ RESEND_API_KEY: 'rk_test' })
+    const adapter = createResendSendAdapter('rk_test')
     await expect(adapter.send(baseInput)).resolves.toEqual({
       id: 're_123',
       quota: { dailyUsed: null, monthlyUsed: 7 },
@@ -108,7 +108,7 @@ describe('resend send adapter', () => {
       )
     vi.stubGlobal('fetch', fetchMock)
 
-    const adapter = createResendSendAdapter({ RESEND_API_KEY: 'rk_test' })
+    const adapter = createResendSendAdapter('rk_test')
     await expect(adapter.send(baseInput)).resolves.toEqual({ id: 'a' })
     await expect(adapter.send(baseInput)).resolves.toEqual({ id: 'b' })
   })
@@ -120,26 +120,46 @@ describe('resend send adapter', () => {
       .mockResolvedValueOnce(new Response('err', { status: 502 }))
     vi.stubGlobal('fetch', fetchMock)
 
-    const adapter = createResendSendAdapter({ RESEND_API_KEY: 'rk_test' })
+    const adapter = createResendSendAdapter('rk_test')
     await expect(adapter.send(baseInput)).resolves.toEqual({ error: 'invalid_address' })
     await expect(adapter.send(baseInput)).resolves.toEqual({ error: 'provider_error' })
   })
 })
 
+function emptyResolveDb(): D1Database {
+  const first = vi.fn().mockResolvedValue(null)
+  const all = vi.fn().mockResolvedValue({ results: [] })
+  const run = vi.fn().mockResolvedValue({ success: true })
+  const bind = vi.fn().mockReturnValue({ first, run, all })
+  const prepare = vi.fn().mockReturnValue({ bind, first, run, all })
+  return { prepare } as unknown as D1Database
+}
+
 describe('getSendAdapter', () => {
-  it('always returns the Resend adapter', async () => {
+  it('returns the Resend adapter when env provides a Resend key', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ id: 're_only' }), { status: 200 }),
     )
     vi.stubGlobal('fetch', fetchMock)
 
-    const adapter = getSendAdapter({ RESEND_API_KEY: 'rk_test' } as Env)
+    const adapter = await getSendAdapter({
+      DB: emptyResolveDb(),
+      ASSETS: {} as Fetcher,
+      COOKIES_SECRET: 'test-secret-at-least-32-chars!!',
+      EMAIL_DOMAIN: 'example.com',
+      RESEND_API_KEY: 'rk_test',
+    })
     await expect(adapter.send(baseInput)).resolves.toEqual({ id: 're_only' })
     expect(fetchMock.mock.calls[0]?.[0]).toBe('https://api.resend.com/emails')
   })
 
-  it('reports not_configured when RESEND_API_KEY is missing', async () => {
-    const adapter = getSendAdapter({} as Env)
+  it('reports not_configured when no API key is available', async () => {
+    const adapter = await getSendAdapter({
+      DB: emptyResolveDb(),
+      ASSETS: {} as Fetcher,
+      COOKIES_SECRET: 'test-secret-at-least-32-chars!!',
+      EMAIL_DOMAIN: 'example.com',
+    })
     await expect(adapter.send(baseInput)).resolves.toEqual({ error: 'not_configured' })
   })
 })
@@ -176,8 +196,10 @@ describe('POST /api/messages/send', () => {
   }) {
     const first = vi.fn()
     const run = opts.insertRun ?? vi.fn().mockResolvedValue({ meta: { changes: 1 }, success: true })
-    const bind = vi.fn().mockReturnValue({ first, run })
-    const prepare = vi.fn().mockReturnValue({ bind })
+    const all = vi.fn().mockResolvedValue({ results: [] })
+    const bind = vi.fn().mockReturnValue({ first, run, all })
+    // resolveSendConfig calls prepare().first() without bind; send path uses bind().
+    const prepare = vi.fn().mockReturnValue({ bind, first, run, all })
     const batch = vi.fn().mockResolvedValue([])
 
     first.mockImplementation(async () => {

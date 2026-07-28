@@ -72,6 +72,16 @@ function graphqlResponse(account: Record<string, unknown>) {
   })
 }
 
+describe('SEND_PROVIDER_LIMITS', () => {
+  it('locks free-tier send limits for each registered provider', () => {
+    expect(SEND_PROVIDER_LIMITS).toEqual({
+      resend: { emailsPerDay: 100, emailsPerMonth: 3_000 },
+      brevo: { emailsPerDay: 300, emailsPerMonth: 9_000 },
+      maileroo: { emailsPerDay: null, emailsPerMonth: 3_000 },
+    })
+  })
+})
+
 describe('toQuota', () => {
   it('derives remaining and never goes negative', () => {
     expect(toQuota(30, 100, 'day')).toEqual({
@@ -503,6 +513,7 @@ describe('fetchCloudflareUsage', () => {
 
 describe('getUsageSnapshot', () => {
   const baseEnv = {
+    COOKIES_SECRET: 'test-secret-at-least-32-chars!!',
     RESEND_API_KEY: 'rk_test',
     CLOUDFLARE_ACCOUNT_ID: 'acc',
     CLOUDFLARE_API_TOKEN: 'tok',

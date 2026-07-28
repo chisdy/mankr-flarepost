@@ -5,7 +5,7 @@
 ## 前置条件
 
 1. 至少有一个已启用的别名（发件地址）
-2. 已配置 Secret `RESEND_API_KEY`，且发信域已在 Resend 侧验证（外发统一走 Resend）
+2. 已配置活动发信平台的 API Key（设置 → 邮件加密入库，或对应 Worker Secret：`RESEND_API_KEY` / `BREVO_API_KEY` / `MAILEROO_API_KEY`），且发信域已在该平台验证
 3. 调用方必须是服务端；V1 **不发送 CORS 头**，浏览器直调会被同源策略拦截
 
 ## 鉴权

@@ -30,7 +30,8 @@ const ERROR_STATUS: Record<SendErrorCode, 400 | 429 | 502> = {
 }
 
 const ERROR_MESSAGE: Record<SendErrorCode, string> = {
-  not_configured: 'Outbound mail is not configured. Set the RESEND_API_KEY secret.',
+  not_configured:
+    'Outbound mail is not configured. Set a provider API key in Settings or as a Worker secret.',
   rate_limited: 'Send rate limit exceeded (30 per hour).',
   invalid_address: 'Invalid sender or recipient address.',
   provider_error: 'Email provider failed to send the message.',
@@ -98,7 +99,7 @@ export function registerSendRoutes(app: SendApp): void {
       }
     }
 
-    const adapter = getSendAdapter(c.env)
+    const adapter = await getSendAdapter(c.env)
     const result = await adapter.send({
       from: alias.address,
       to,

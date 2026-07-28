@@ -30,10 +30,14 @@ const CLOUDFLARE_ERROR_KEYS: Record<CloudflareErrorReason, string> = {
 /** Brand names are not translated, and the env var is what the setup hint must name. */
 export const SEND_PROVIDER_NAMES: Record<SendProviderId, string> = {
   resend: "Resend",
+  brevo: "Brevo",
+  maileroo: "Maileroo",
 }
 
 const SEND_PROVIDER_ENV_VARS: Record<SendProviderId, string> = {
   resend: "RESEND_API_KEY",
+  brevo: "BREVO_API_KEY",
+  maileroo: "MAILEROO_API_KEY",
 }
 
 export function SendProviderCard({

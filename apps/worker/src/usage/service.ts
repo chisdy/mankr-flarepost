@@ -1,4 +1,7 @@
-import type { SendProviderId } from '../adapters/send'
+import {
+  isProviderCredentialConfigured,
+  type SendProviderId,
+} from '../adapters/send'
 import type { Env } from '../env'
 import {
   toQuota,
@@ -84,21 +87,29 @@ const CLOUDFLARE_UNCONFIGURED: CloudflareUsage = {
 }
 
 /**
- * Which env var proves a provider is usable. Resend has no usage endpoint to poll, so send
- * figures come from D1 — see `send-usage.ts` — and this only decides configured vs not.
+ * A provider is usable when its API key exists in the sealed DB table or the matching env
+ * secret. Send figures still come from D1 — see `send-usage.ts`.
  */
-function isSendProviderConfigured(env: Env, provider: SendProviderId): boolean {
-  switch (provider) {
-    case 'resend':
-      return Boolean(env.RESEND_API_KEY?.trim())
-  }
+async function isSendProviderConfigured(
+  env: Env,
+  provider: SendProviderId,
+): Promise<boolean> {
+  return isProviderCredentialConfigured(env, provider)
 }
 
-export function fetchSendProviderUsage(env: Env, now: Date): Promise<SendProviderUsage[]> {
+export async function fetchSendProviderUsage(
+  env: Env,
+  now: Date,
+): Promise<SendProviderUsage[]> {
   const providers = Object.keys(SEND_PROVIDER_LIMITS) as SendProviderId[]
   return Promise.all(
-    providers.map((provider) =>
-      getSendProviderUsage(env.DB, provider, isSendProviderConfigured(env, provider), now),
+    providers.map(async (provider) =>
+      getSendProviderUsage(
+        env.DB,
+        provider,
+        await isSendProviderConfigured(env, provider),
+        now,
+      ),
     ),
   )
 }

@@ -5,7 +5,17 @@ export type SendErrorCode =
   | 'provider_error'
 
 /** Identifies which service sent a message, so usage can be attributed per provider. */
-export type SendProviderId = 'resend'
+export type SendProviderId = 'resend' | 'brevo' | 'maileroo'
+
+export const SEND_PROVIDER_IDS: readonly SendProviderId[] = [
+  'resend',
+  'brevo',
+  'maileroo',
+] as const
+
+export function isSendProviderId(value: unknown): value is SendProviderId {
+  return value === 'resend' || value === 'brevo' || value === 'maileroo'
+}
 
 /**
  * What the provider said about its own tally while accepting the message. A `null` window

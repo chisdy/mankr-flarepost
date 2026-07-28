@@ -68,6 +68,7 @@ function mockPublicSendDb(opts: {
     const run = vi.fn().mockResolvedValue({ meta: { changes: 1 }, success: true })
     const all = vi.fn().mockResolvedValue({ results: [] })
     const bind = vi.fn().mockReturnValue({ first, run, all, bind: vi.fn() })
+    // resolveSendConfig uses prepare().first() without bind
     return { bind, first, run, all }
   })
   return { prepare, batch } as unknown as D1Database & {

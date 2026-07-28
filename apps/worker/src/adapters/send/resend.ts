@@ -24,12 +24,12 @@ function parseHeaderCount(raw: string | null): number | null {
   return Number.isFinite(value) && value >= 0 ? value : null
 }
 
-export function createResendSendAdapter(env: { RESEND_API_KEY?: string }): SendAdapter {
+export function createResendSendAdapter(apiKey: string): SendAdapter {
   return {
     provider: 'resend',
     async send(input: SendInput): Promise<SendResult> {
-      const apiKey = env.RESEND_API_KEY?.trim()
-      if (!apiKey) {
+      const key = apiKey.trim()
+      if (!key) {
         return { error: 'not_configured' }
       }
 
@@ -46,7 +46,7 @@ export function createResendSendAdapter(env: { RESEND_API_KEY?: string }): SendA
         const res = await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${apiKey}`,
+            Authorization: `Bearer ${key}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(payload),

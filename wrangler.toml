@@ -3,12 +3,14 @@
 # One-click: Deploy to Cloudflare button in README (public GitHub/GitLab repo)
 #
 # After first deploy / one-click:
-#   1. Set secrets: COOKIES_SECRET and RESEND_API_KEY (both required)
-#   2. Set var EMAIL_DOMAIN in the dashboard (Settings → Variables and Secrets),
+#   1. Set secret COOKIES_SECRET (required for sessions + encrypting stored send keys)
+#   2. Configure outbound: Settings → Mail (encrypted in D1) and/or Worker secrets
+#      RESEND_API_KEY / BREVO_API_KEY / MAILEROO_API_KEY; optional SEND_PROVIDER
+#   3. Set var EMAIL_DOMAIN in the dashboard (Settings → Variables and Secrets),
 #      or in .dev.vars for local dev. It is deliberately not declared here: this
 #      is a public repo, and a domain baked into [vars] would follow every fork.
-#   3. Email Routing → catch-all or per-alias → this Worker
-#   4. Open /setup to create the admin user
+#   4. Email Routing → catch-all or per-alias → this Worker
+#   5. Open /setup to create the admin user
 #
 # D1: all-zero database_id is a Deploy-to-Cloudflare placeholder.
 #     One-click provisions a real D1 and rewrites this ID into the forked repo.
@@ -40,7 +42,7 @@ migrations_dir = "apps/worker/migrations"
 # not stored — messages surface a "attachments not supported" banner instead.
 
 # No [[send_email]] binding: Cloudflare Email Sending only reaches arbitrary
-# recipients on Workers Paid. Outbound goes through Resend (RESEND_API_KEY).
+# recipients on Workers Paid. Outbound uses Resend / Brevo / Maileroo (DB key or env).
 
 [assets]
 directory = "apps/web/dist"

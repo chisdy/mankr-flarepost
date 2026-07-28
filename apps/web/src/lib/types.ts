@@ -142,7 +142,24 @@ export type CloudflareErrorReason =
   | "query_failed"
   | "unreachable"
 
-export type SendProviderId = "resend"
+export type SendProviderId = "resend" | "brevo" | "maileroo"
+
+export type ActiveProviderSource = "database" | "env" | "default"
+export type ApiKeySource = "database" | "env" | "none"
+
+export type ProviderCredentialStatus = {
+  provider: SendProviderId
+  configured: boolean
+  source: ApiKeySource
+  hint: string | null
+  envVar: string
+}
+
+export type SendProvidersSnapshot = {
+  activeProvider: SendProviderId
+  activeSource: ActiveProviderSource
+  providers: ProviderCredentialStatus[]
+}
 
 /** A `null` window means the provider caps nothing there, not that the cap is zero. */
 export type SendProviderLimits = {

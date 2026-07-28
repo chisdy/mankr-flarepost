@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --config ../../wrangler.toml",
+    "dev": "wrangler dev --ip 127.0.0.1 --port 8787 --config ../../wrangler.toml",
     "build": "echo \"worker bundled by wrangler\"",
     "test": "vitest run"
   },

@@ -18,6 +18,8 @@ export type SendProviderLimits = {
 
 export const SEND_PROVIDER_LIMITS: Record<SendProviderId, SendProviderLimits> = {
   resend: { emailsPerDay: 100, emailsPerMonth: 3_000 },
+  brevo: { emailsPerDay: 300, emailsPerMonth: 9_000 },
+  maileroo: { emailsPerDay: null, emailsPerMonth: 3_000 },
 }
 
 /** Long enough to cover the widest window (a calendar month) with room to spare. */

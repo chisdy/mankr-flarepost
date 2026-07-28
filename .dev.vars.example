@@ -2,10 +2,17 @@
 # Never commit real secrets.
 
 # Required: session cookie signing key (e.g. openssl rand -hex 32)
+# Also used to encrypt outbound provider API keys stored in D1.
 COOKIES_SECRET=replace-with-openssl-rand-hex-32
 
-# Required for outbound mail (https://resend.com — free tier, no credit card)
+# Optional: active provider when Settings has no DB override (resend | brevo | maileroo)
+# SEND_PROVIDER=resend
+
+# Optional env fallbacks for outbound mail (prefer Settings → Mail to store encrypted keys).
+# Configure at least one path: encrypted DB key for the active provider, or the matching env var.
 RESEND_API_KEY=
+BREVO_API_KEY=
+MAILEROO_API_KEY=
 
 # Required: your mail domain, without `@` (aliases become local@EMAIL_DOMAIN).
 # In production this lives in the dashboard, not in wrangler.toml.
