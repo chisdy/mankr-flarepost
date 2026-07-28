@@ -21,13 +21,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Field,
   FieldDescription,
   FieldGroup,
   FieldLabel,
+  FieldLegend,
+  FieldSet,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import {
   Select,
   SelectContent,
@@ -77,6 +81,7 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
   ])
   const [actionStar, setActionStar] = useState(false)
   const [actionTrash, setActionTrash] = useState(false)
+  const [actionSpam, setActionSpam] = useState(false)
   const [actionTagIds, setActionTagIds] = useState<string[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
 
@@ -147,6 +152,7 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
     setConditions([newConditionDraft()])
     setActionStar(false)
     setActionTrash(false)
+    setActionSpam(false)
     setActionTagIds([])
   }
 
@@ -167,6 +173,7 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
     )
     setActionStar(Boolean(filter.actions.setStarred))
     setActionTrash(Boolean(filter.actions.moveToTrash))
+    setActionSpam(Boolean(filter.actions.moveToSpam))
     setActionTagIds(filter.actions.addTagIds ?? [])
     setFilterDialogOpen(true)
   }
@@ -189,7 +196,7 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
       toast.error(t("settings.filterInvalid"))
       return
     }
-    if (!actionStar && !actionTrash && actionTagIds.length === 0) {
+    if (!actionStar && !actionTrash && !actionSpam && actionTagIds.length === 0) {
       toast.error(t("settings.filterNeedAction"))
       return
     }
@@ -204,6 +211,7 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
         ...(actionTagIds.length ? { addTagIds: actionTagIds } : {}),
         ...(actionStar ? { setStarred: true as const } : {}),
         ...(actionTrash ? { moveToTrash: true as const } : {}),
+        ...(actionSpam ? { moveToSpam: true as const } : {}),
       },
     }
 
@@ -508,27 +516,31 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
             </Field>
 
             <div className="grid grid-cols-2 gap-3">
-              <Field>
-                <FieldLabel>{t("settings.matchMode")}</FieldLabel>
-                <Select
-                  items={matchModeItems}
+              <FieldSet>
+                <FieldLegend variant="label">{t("settings.matchMode")}</FieldLegend>
+                <RadioGroup
                   value={matchMode}
-                  onValueChange={(v) => v && setMatchMode(v as "and" | "or")}
+                  onValueChange={(v) => {
+                    if (v === "and" || v === "or") setMatchMode(v)
+                  }}
+                  className="flex flex-row flex-wrap gap-4"
                 >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {matchModeItems.map((item) => (
-                        <SelectItem key={item.value} value={item.value}>
-                          {item.label}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </Field>
+                  {matchModeItems.map((item) => (
+                    <Field key={item.value} orientation="horizontal">
+                      <RadioGroupItem
+                        value={item.value}
+                        id={`filter-match-${item.value}`}
+                      />
+                      <FieldLabel
+                        htmlFor={`filter-match-${item.value}`}
+                        className="font-normal"
+                      >
+                        {item.label}
+                      </FieldLabel>
+                    </Field>
+                  ))}
+                </RadioGroup>
+              </FieldSet>
 
               <Field>
                 <FieldLabel>{t("settings.priority")}</FieldLabel>
@@ -640,29 +652,59 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
               </div>
             </Field>
 
-            <Field>
-              <FieldLabel>{t("settings.actions")}</FieldLabel>
+            <FieldSet>
+              <FieldLegend variant="label">{t("settings.actions")}</FieldLegend>
               <div className="flex flex-col gap-2.5 rounded-xl border border-border p-3">
-                <div className="flex items-center gap-6">
-                  <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="rounded border-border"
+                <FieldGroup
+                  data-slot="checkbox-group"
+                  className="flex flex-row flex-wrap gap-x-6 gap-y-2"
+                >
+                  <Field orientation="horizontal">
+                    <Checkbox
+                      id="filter-action-star"
                       checked={actionStar}
-                      onChange={(e) => setActionStar(e.target.checked)}
+                      onCheckedChange={setActionStar}
                     />
-                    {t("settings.actionStar")}
-                  </label>
-                  <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="rounded border-border"
+                    <FieldLabel
+                      htmlFor="filter-action-star"
+                      className="font-normal"
+                    >
+                      {t("settings.actionStar")}
+                    </FieldLabel>
+                  </Field>
+                  <Field orientation="horizontal">
+                    <Checkbox
+                      id="filter-action-trash"
                       checked={actionTrash}
-                      onChange={(e) => setActionTrash(e.target.checked)}
+                      onCheckedChange={(checked) => {
+                        setActionTrash(checked)
+                        if (checked) setActionSpam(false)
+                      }}
                     />
-                    {t("settings.actionTrash")}
-                  </label>
-                </div>
+                    <FieldLabel
+                      htmlFor="filter-action-trash"
+                      className="font-normal"
+                    >
+                      {t("settings.actionTrash")}
+                    </FieldLabel>
+                  </Field>
+                  <Field orientation="horizontal">
+                    <Checkbox
+                      id="filter-action-spam"
+                      checked={actionSpam}
+                      onCheckedChange={(checked) => {
+                        setActionSpam(checked)
+                        if (checked) setActionTrash(false)
+                      }}
+                    />
+                    <FieldLabel
+                      htmlFor="filter-action-spam"
+                      className="font-normal"
+                    >
+                      {t("settings.actionSpam")}
+                    </FieldLabel>
+                  </Field>
+                </FieldGroup>
 
                 {tags.length > 0 ? (
                   <div className="flex flex-wrap gap-1.5 pt-1">
@@ -693,7 +735,7 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
                   </div>
                 ) : null}
               </div>
-            </Field>
+            </FieldSet>
           </FieldGroup>
 
           <DialogFooter>

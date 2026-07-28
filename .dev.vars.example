@@ -10,3 +10,10 @@ RESEND_API_KEY=
 # Required: your mail domain, without `@` (aliases become local@EMAIL_DOMAIN).
 # In production this lives in the dashboard, not in wrangler.toml.
 EMAIL_DOMAIN=example.com
+
+# Optional: powers the Cloudflare half of the /usage page. Both are required —
+# either one alone is treated as unconfigured. Account ID comes from
+# `npx wrangler whoami`; the token only needs Account Analytics → Read, and
+# should be a separate, read-only token from the one used to deploy.
+CLOUDFLARE_ACCOUNT_ID=
+CLOUDFLARE_API_TOKEN=

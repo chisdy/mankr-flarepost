@@ -25,6 +25,10 @@ compatibility_flags = ["nodejs_compat"]
 # file — including the dashboard-managed EMAIL_DOMAIN.
 keep_vars = true
 
+# Nightly retention purge for deleted / spam mail. Free plan allows cron triggers.
+[triggers]
+crons = ["0 3 * * *"]
+
 [[d1_databases]]
 binding = "DB"
 database_name = "mankr-flarepost"

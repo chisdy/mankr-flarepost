@@ -5,6 +5,7 @@ import {
   ArrowLeftIcon,
   StarIcon,
   TrashIcon,
+  WarningOctagonIcon,
 } from "@phosphor-icons/react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -55,7 +56,7 @@ export function MessageView() {
         if (cancelled) return
         setMessage(msg)
         setAllTags(tagsRes.tags)
-        if (!msg.isRead && msg.folder !== "trash") {
+        if (!msg.isRead && msg.folder !== "trash" && msg.folder !== "spam") {
           void api(`/api/messages/${id}/read`, { method: "POST" }).then(() => {
             if (!cancelled) {
               setMessage((prev) => (prev ? { ...prev, isRead: true } : prev))
@@ -84,9 +85,23 @@ export function MessageView() {
     try {
       await api(`/api/messages/${id}/trash`, { method: "POST" })
       toast.success(t("message.movedToTrash"))
-      navigate("/inbox")
+      navigate(message?.folder === "spam" ? "/spam" : "/inbox")
     } catch (err) {
       toast.error(isApiError(err) ? err.message : t("message.trashFailed"))
+    } finally {
+      setActing(false)
+    }
+  }
+
+  async function markSpam() {
+    if (!id) return
+    setActing(true)
+    try {
+      await api(`/api/messages/${id}/spam`, { method: "POST" })
+      toast.success(t("message.movedToSpam"))
+      navigate("/inbox")
+    } catch (err) {
+      toast.error(isApiError(err) ? err.message : t("message.spamFailed"))
     } finally {
       setActing(false)
     }
@@ -160,15 +175,18 @@ export function MessageView() {
       ? "/sent"
       : message.folder === "trash"
         ? "/trash"
-        : message.folder === "draft"
-          ? "/draft"
-          : "/inbox"
+        : message.folder === "spam"
+          ? "/spam"
+          : message.folder === "draft"
+            ? "/draft"
+            : "/inbox"
 
   const sanitized = message.htmlBody ? sanitize(message.htmlBody).trim() : ""
   const html = sanitized || null
 
-  const showReplyForward =
-    message.folder !== "trash" && message.folder !== "draft"
+  const isDeletedOrSpam =
+    message.folder === "trash" || message.folder === "spam"
+  const showReplyForward = !isDeletedOrSpam && message.folder !== "draft"
 
   return (
     <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
@@ -209,17 +227,31 @@ export function MessageView() {
                 {message.isStarred ? t("mailbox.unstar") : t("mailbox.star")}
               </Button>
             ) : null}
-            {message.folder === "trash" ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={acting}
-                onClick={() => void restore()}
-              >
-                <ArrowCounterClockwiseIcon data-icon="inline-start" />
-                {t("message.restore")}
-              </Button>
+            {isDeletedOrSpam ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={acting}
+                  onClick={() => void restore()}
+                >
+                  <ArrowCounterClockwiseIcon data-icon="inline-start" />
+                  {t("message.restore")}
+                </Button>
+                {message.folder === "spam" ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={acting}
+                    onClick={() => void trash()}
+                  >
+                    <TrashIcon data-icon="inline-start" />
+                    {t("message.trash")}
+                  </Button>
+                ) : null}
+              </>
             ) : message.folder === "draft" ? (
               <Button
                 type="button"
@@ -230,16 +262,28 @@ export function MessageView() {
                 {t("message.editDraft")}
               </Button>
             ) : (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={acting}
-                onClick={() => void trash()}
-              >
-                <TrashIcon data-icon="inline-start" />
-                {t("message.trash")}
-              </Button>
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={acting}
+                  onClick={() => void markSpam()}
+                >
+                  <WarningOctagonIcon data-icon="inline-start" />
+                  {t("message.markSpam")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={acting}
+                  onClick={() => void trash()}
+                >
+                  <TrashIcon data-icon="inline-start" />
+                  {t("message.trash")}
+                </Button>
+              </>
             )}
           </div>
         }

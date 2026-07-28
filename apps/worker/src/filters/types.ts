@@ -10,6 +10,7 @@ export type FilterActions = {
   addTagIds?: string[]
   setStarred?: true
   moveToTrash?: true
+  moveToSpam?: true
 }
 
 export type FilterRule = {
@@ -85,6 +86,14 @@ export function parseActions(raw: unknown): FilterActions | null {
     actions.moveToTrash = true
     hasAction = true
   }
+  if ('moveToSpam' in obj) {
+    if (obj.moveToSpam !== true) return null
+    actions.moveToSpam = true
+    hasAction = true
+  }
+
+  // Spam wins over trash: a rule that says both would otherwise depend on apply order.
+  if (actions.moveToSpam) delete actions.moveToTrash
 
   return hasAction ? actions : null
 }
@@ -124,16 +133,20 @@ export function reduceActions(actionsList: FilterActions[]): FilterActions {
   const tagIds = new Set<string>()
   let setStarred: true | undefined
   let moveToTrash: true | undefined
+  let moveToSpam: true | undefined
 
   for (const actions of actionsList) {
     for (const id of actions.addTagIds ?? []) tagIds.add(id)
     if (actions.setStarred) setStarred = true
     if (actions.moveToTrash) moveToTrash = true
+    if (actions.moveToSpam) moveToSpam = true
   }
 
   const out: FilterActions = {}
   if (tagIds.size > 0) out.addTagIds = [...tagIds]
   if (setStarred) out.setStarred = true
-  if (moveToTrash) out.moveToTrash = true
+  // Spam wins when stacked rules ask for both.
+  if (moveToSpam) out.moveToSpam = true
+  else if (moveToTrash) out.moveToTrash = true
   return out
 }

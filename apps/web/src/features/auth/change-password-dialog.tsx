@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { z } from "zod"
 
+import { PasswordInput } from "@/components/password-input"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -20,7 +21,6 @@ import {
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { api, isApiError } from "@/lib/api"
 
 type PasswordValues = {
@@ -109,9 +109,8 @@ export function ChangePasswordDialog({
               data-invalid={!!form.formState.errors.currentPassword || undefined}
             >
               <FieldLabel htmlFor="current-password">{t("auth.currentPassword")}</FieldLabel>
-              <Input
+              <PasswordInput
                 id="current-password"
-                type="password"
                 autoComplete="current-password"
                 aria-invalid={!!form.formState.errors.currentPassword}
                 {...form.register("currentPassword")}
@@ -120,9 +119,8 @@ export function ChangePasswordDialog({
             </Field>
             <Field data-invalid={!!form.formState.errors.newPassword || undefined}>
               <FieldLabel htmlFor="new-password">{t("auth.newPassword")}</FieldLabel>
-              <Input
+              <PasswordInput
                 id="new-password"
-                type="password"
                 autoComplete="new-password"
                 aria-invalid={!!form.formState.errors.newPassword}
                 {...form.register("newPassword")}
@@ -133,9 +131,8 @@ export function ChangePasswordDialog({
               data-invalid={!!form.formState.errors.confirmPassword || undefined}
             >
               <FieldLabel htmlFor="confirm-password">{t("auth.confirmPassword")}</FieldLabel>
-              <Input
+              <PasswordInput
                 id="confirm-password"
-                type="password"
                 autoComplete="new-password"
                 aria-invalid={!!form.formState.errors.confirmPassword}
                 {...form.register("confirmPassword")}

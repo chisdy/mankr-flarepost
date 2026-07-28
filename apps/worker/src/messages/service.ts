@@ -1,4 +1,7 @@
-export type Folder = 'inbox' | 'sent' | 'trash' | 'draft'
+export type Folder = 'inbox' | 'sent' | 'trash' | 'draft' | 'spam'
+
+/** Folders holding soft-deleted mail: hidden from search/starred/tag views, purged by retention. */
+export type PurgeableFolder = Extract<Folder, 'trash' | 'spam'>
 export type Direction = 'inbound' | 'outbound'
 
 export type MessageTag = {
@@ -47,9 +50,12 @@ export type MessageRow = {
   deleted_at: number | null
 }
 
-export const FOLDERS: readonly Folder[] = ['inbox', 'sent', 'trash', 'draft'] as const
+export const FOLDERS: readonly Folder[] = ['inbox', 'sent', 'trash', 'draft', 'spam'] as const
 export const DEFAULT_LIST_LIMIT = 50
 export const MAX_LIST_LIMIT = 100
+
+/** Folders excluded from search, starred, and tag listings. */
+const HIDDEN_FOLDERS_SQL = `('trash', 'draft', 'spam')`
 
 const MESSAGE_COLUMNS = `id, alias_id, folder, direction, from_addr, to_addrs, subject,
                 text_body, html_body, is_read, is_starred, has_unsupported_attachments,
@@ -65,7 +71,9 @@ export class InvalidCursorError extends Error {
 }
 
 /** Restore target: inbound → inbox, outbound → sent. Drafts are hard-deleted, not trashed. */
-export function restoreTargetFolder(direction: Direction): Exclude<Folder, 'trash' | 'draft'> {
+export function restoreTargetFolder(
+  direction: Direction,
+): Exclude<Folder, 'trash' | 'draft' | 'spam'> {
   return direction === 'inbound' ? 'inbox' : 'sent'
 }
 
@@ -155,6 +163,49 @@ function cursorClause(cursor: string | null | undefined): {
   }
 }
 
+export type FolderCounts = {
+  inbox: number
+  sent: number
+  trash: number
+  draft: number
+  spam: number
+  starred: number
+}
+
+/** Counts for sidebar nav: per-folder totals plus starred (excluding trash/draft/spam). */
+export async function getFolderCounts(db: D1Database): Promise<FolderCounts> {
+  const counts: FolderCounts = {
+    inbox: 0,
+    sent: 0,
+    trash: 0,
+    draft: 0,
+    spam: 0,
+    starred: 0,
+  }
+
+  const { results: folderRows } = await db
+    .prepare(`SELECT folder, COUNT(*) AS cnt FROM messages GROUP BY folder`)
+    .all<{ folder: string; cnt: number }>()
+
+  for (const row of folderRows ?? []) {
+    if (isFolder(row.folder)) {
+      counts[row.folder] = Number(row.cnt) || 0
+    }
+  }
+
+  const starredRow = await db
+    .prepare(
+      `SELECT COUNT(*) AS cnt
+       FROM messages
+       WHERE is_starred = 1
+         AND folder NOT IN ${HIDDEN_FOLDERS_SQL}`,
+    )
+    .first<{ cnt: number }>()
+
+  counts.starred = Number(starredRow?.cnt) || 0
+  return counts
+}
+
 export async function listMessages(
   db: D1Database,
   opts: ListMessagesOpts,
@@ -171,7 +222,7 @@ export async function listMessages(
         `SELECT ${MESSAGE_COLUMNS}
          FROM messages
          WHERE is_starred = 1
-           AND folder NOT IN ('trash', 'draft')
+           AND folder NOT IN ${HIDDEN_FOLDERS_SQL}
            ${cursor.sql}
          ORDER BY created_at DESC, id DESC
          LIMIT ?`,
@@ -191,7 +242,7 @@ export async function listMessages(
          FROM messages m
          INNER JOIN message_tags mt ON mt.message_id = m.id
          WHERE mt.tag_id = ?
-           AND m.folder NOT IN ('trash', 'draft')
+           AND m.folder NOT IN ${HIDDEN_FOLDERS_SQL}
            ${tagCursorSql}
          ORDER BY m.created_at DESC, m.id DESC
          LIMIT ?`,
@@ -244,7 +295,7 @@ export type SearchMessagesOpts = {
   cursor?: string | null
 }
 
-/** Search subject / from / text body (LIKE). Excludes trash and drafts. */
+/** Search subject / from / text body (LIKE). Excludes trash, drafts, and spam. */
 export async function searchMessages(
   db: D1Database,
   opts: SearchMessagesOpts,
@@ -263,7 +314,7 @@ export async function searchMessages(
     .prepare(
       `SELECT ${MESSAGE_COLUMNS}
        FROM messages
-       WHERE folder NOT IN ('trash', 'draft')
+       WHERE folder NOT IN ${HIDDEN_FOLDERS_SQL}
          AND (
            subject LIKE ? ESCAPE '\\'
            OR from_addr LIKE ? ESCAPE '\\'
@@ -367,31 +418,47 @@ export async function markRead(db: D1Database, id: string): Promise<boolean> {
   return (result.meta.changes ?? 0) > 0
 }
 
-export async function moveToTrash(db: D1Database, id: string): Promise<boolean> {
+/**
+ * Move to trash or spam and stamp `deleted_at`, which starts the retention clock.
+ * Already in the target folder is a no-op so the clock is not extended.
+ */
+async function moveToPurgeableFolder(
+  db: D1Database,
+  id: string,
+  target: PurgeableFolder,
+): Promise<boolean> {
   const row = await db
     .prepare('SELECT id, folder FROM messages WHERE id = ?')
     .bind(id)
     .first<{ id: string; folder: Folder }>()
   if (!row || row.folder === 'draft') return false
+  if (row.folder === target) return true
 
-  const deletedAt = Date.now()
   const result = await db
-    .prepare(`UPDATE messages SET folder = 'trash', deleted_at = ? WHERE id = ?`)
-    .bind(deletedAt, id)
+    .prepare('UPDATE messages SET folder = ?, deleted_at = ? WHERE id = ?')
+    .bind(target, Date.now(), id)
     .run()
   return (result.meta.changes ?? 0) > 0
+}
+
+export function moveToTrash(db: D1Database, id: string): Promise<boolean> {
+  return moveToPurgeableFolder(db, id, 'trash')
+}
+
+export function moveToSpam(db: D1Database, id: string): Promise<boolean> {
+  return moveToPurgeableFolder(db, id, 'spam')
 }
 
 export async function restoreMessage(
   db: D1Database,
   id: string,
-): Promise<{ folder: Exclude<Folder, 'trash' | 'draft'> } | null> {
+): Promise<{ folder: Exclude<Folder, 'trash' | 'draft' | 'spam'> } | null> {
   const row = await db
     .prepare('SELECT id, folder, direction FROM messages WHERE id = ?')
     .bind(id)
     .first<{ id: string; folder: Folder; direction: Direction }>()
 
-  if (!row || row.folder !== 'trash') return null
+  if (!row || (row.folder !== 'trash' && row.folder !== 'spam')) return null
 
   const folder = restoreTargetFolder(row.direction)
   await db
@@ -411,16 +478,81 @@ export async function isDraft(db: D1Database, id: string): Promise<boolean> {
   return row !== null
 }
 
-/** Delete message_tags for trash messages, then delete trash messages (FK-safe). */
-export async function emptyTrash(db: D1Database): Promise<number> {
+/** Delete message_tags for the folder's messages, then the messages themselves (FK-safe). */
+async function emptyFolder(db: D1Database, folder: PurgeableFolder): Promise<number> {
   await db
     .prepare(
       `DELETE FROM message_tags
-       WHERE message_id IN (SELECT id FROM messages WHERE folder = 'trash')`,
+       WHERE message_id IN (SELECT id FROM messages WHERE folder = ?)`,
     )
+    .bind(folder)
     .run()
-  const result = await db.prepare(`DELETE FROM messages WHERE folder = 'trash'`).run()
+  const result = await db.prepare('DELETE FROM messages WHERE folder = ?').bind(folder).run()
   return result.meta.changes ?? 0
+}
+
+export function emptyTrash(db: D1Database): Promise<number> {
+  return emptyFolder(db, 'trash')
+}
+
+export function emptySpam(db: D1Database): Promise<number> {
+  return emptyFolder(db, 'spam')
+}
+
+export const DAY_MS = 24 * 60 * 60 * 1000
+
+export type RetentionDays = {
+  trashDays: number
+  spamDays: number
+}
+
+/** Tags then messages, per folder — the pair D1 runs as one transaction in `batch`. */
+function purgeFolderStatements(
+  db: D1Database,
+  folder: PurgeableFolder,
+  cutoff: number,
+): D1PreparedStatement[] {
+  return [
+    db
+      .prepare(
+        `DELETE FROM message_tags
+         WHERE message_id IN (
+           SELECT id FROM messages
+           WHERE folder = ? AND deleted_at IS NOT NULL AND deleted_at < ?
+         )`,
+      )
+      .bind(folder, cutoff),
+    db
+      .prepare(
+        `DELETE FROM messages
+         WHERE folder = ? AND deleted_at IS NOT NULL AND deleted_at < ?`,
+      )
+      .bind(folder, cutoff),
+  ]
+}
+
+export function purgeExpiredStatements(
+  db: D1Database,
+  retention: RetentionDays,
+  now: number = Date.now(),
+): D1PreparedStatement[] {
+  return [
+    ...purgeFolderStatements(db, 'trash', now - retention.trashDays * DAY_MS),
+    ...purgeFolderStatements(db, 'spam', now - retention.spamDays * DAY_MS),
+  ]
+}
+
+/** Hard-delete messages soft-deleted longer ago than their folder's retention window. */
+export async function purgeExpiredMessages(
+  db: D1Database,
+  retention: RetentionDays,
+  now: number = Date.now(),
+): Promise<{ trash: number; spam: number }> {
+  const results = await db.batch(purgeExpiredStatements(db, retention, now))
+  return {
+    trash: results[1]?.meta.changes ?? 0,
+    spam: results[3]?.meta.changes ?? 0,
+  }
 }
 
 export type InsertInboundMessageInput = {

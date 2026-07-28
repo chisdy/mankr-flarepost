@@ -9,6 +9,7 @@ import { MailboxPage } from "@/pages/mailbox"
 import { MessagePage } from "@/pages/message"
 import { SettingsPage } from "@/pages/settings"
 import { SetupPage } from "@/pages/setup"
+import { UsagePage } from "@/pages/usage"
 
 export function App() {
   return (
@@ -26,12 +27,14 @@ export function App() {
             <Route path="/draft" element={<MailboxPage />} />
             <Route path="/sent" element={<MailboxPage />} />
             <Route path="/trash" element={<MailboxPage />} />
+            <Route path="/spam" element={<MailboxPage />} />
             <Route path="/m/:id" element={<MessagePage />} />
             <Route path="/compose" element={<ComposePage />} />
             <Route
               path="/aliases"
               element={<Navigate to="/settings?tab=mail" replace />}
             />
+            <Route path="/usage" element={<UsagePage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Route>

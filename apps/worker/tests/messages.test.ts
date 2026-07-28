@@ -1,14 +1,19 @@
 import { describe, expect, it, vi } from 'vitest'
+import { createSessionCookie, SESSION_COOKIE_NAME } from '../src/auth/session'
 import { createApp } from '../src/http/app'
 import type { Env } from '../src/env'
 import {
+  DAY_MS,
   decodeCursor,
   encodeCursor,
   listMessages,
   markRead,
+  moveToSpam,
   moveToTrash,
+  purgeExpiredMessages,
   restoreMessage,
   restoreTargetFolder,
+  emptySpam,
   emptyTrash,
   getMessage,
   insertDraft,
@@ -17,7 +22,10 @@ import {
   setStarred,
   escapeLikePattern,
   searchMessages,
+  getFolderCounts,
 } from '../src/messages/service'
+
+const HIDDEN_FOLDERS_RE = /folder\s+NOT\s+IN\s*\(\s*'trash'\s*,\s*'draft'\s*,\s*'spam'\s*\)/i
 
 describe('restoreTargetFolder', () => {
   it('maps inbound trash → inbox', () => {
@@ -110,7 +118,7 @@ describe('listMessages', () => {
     expect(result.nextCursor).toBe(encodeCursor(999, 'm1'))
   })
 
-  it('lists starred messages excluding trash and draft', async () => {
+  it('lists starred messages excluding trash, draft, and spam', async () => {
     const rows = [mockMessageRow({ is_starred: 1 })]
     const { prepare, bind, db } = mockDbForList(rows)
 
@@ -118,7 +126,7 @@ describe('listMessages', () => {
     expect(result.items[0]?.isStarred).toBe(true)
     const sql = String(prepare.mock.calls[0]?.[0] ?? '')
     expect(sql).toMatch(/is_starred\s*=\s*1/i)
-    expect(sql).toMatch(/folder\s+NOT\s+IN\s*\(\s*'trash'\s*,\s*'draft'\s*\)/i)
+    expect(sql).toMatch(HIDDEN_FOLDERS_RE)
     expect(bind).toHaveBeenCalledWith(11)
   })
 
@@ -190,10 +198,8 @@ describe('folder actions', () => {
     const selectSql = String(prepare.mock.calls[0]?.[0] ?? '')
     expect(selectSql).toMatch(/SELECT\s+id,\s*folder\s+FROM\s+messages/i)
     const updateSql = String(prepare.mock.calls[1]?.[0] ?? '')
-    expect(updateSql).toMatch(/SET\s+folder\s*=\s*'trash'/i)
-    expect(updateSql).toMatch(/deleted_at\s*=\s*\?/i)
-    expect(bind.mock.calls[1]?.[0]).toEqual(expect.any(Number))
-    expect(bind.mock.calls[1]?.[1]).toBe('m1')
+    expect(updateSql).toMatch(/SET\s+folder\s*=\s*\?\s*,\s*deleted_at\s*=\s*\?/i)
+    expect(bind.mock.calls[1]).toEqual(['trash', expect.any(Number), 'm1'])
   })
 
   it('moveToTrash refuses drafts', async () => {
@@ -203,6 +209,48 @@ describe('folder actions', () => {
     const db = { prepare } as unknown as D1Database
 
     await expect(moveToTrash(db, 'd1')).resolves.toBe(false)
+  })
+
+  it('moveToTrash restamps deleted_at when coming from spam', async () => {
+    const first = vi.fn().mockResolvedValue({ id: 'm1', folder: 'spam' })
+    const run = vi.fn().mockResolvedValue({ meta: { changes: 1 }, success: true })
+    const bind = vi.fn().mockReturnValue({ first, run })
+    const prepare = vi.fn().mockReturnValue({ bind })
+    const db = { prepare } as unknown as D1Database
+
+    expect(await moveToTrash(db, 'm1')).toBe(true)
+    expect(bind.mock.calls[1]).toEqual(['trash', expect.any(Number), 'm1'])
+  })
+
+  it('moveToSpam sets folder=spam and deleted_at', async () => {
+    const first = vi.fn().mockResolvedValue({ id: 'm1', folder: 'inbox' })
+    const run = vi.fn().mockResolvedValue({ meta: { changes: 1 }, success: true })
+    const bind = vi.fn().mockReturnValue({ first, run })
+    const prepare = vi.fn().mockReturnValue({ bind })
+    const db = { prepare } as unknown as D1Database
+
+    expect(await moveToSpam(db, 'm1')).toBe(true)
+    expect(bind.mock.calls[1]).toEqual(['spam', expect.any(Number), 'm1'])
+  })
+
+  it('moveToSpam is a no-op that keeps the existing deleted_at', async () => {
+    const first = vi.fn().mockResolvedValue({ id: 'm1', folder: 'spam' })
+    const run = vi.fn()
+    const bind = vi.fn().mockReturnValue({ first, run })
+    const prepare = vi.fn().mockReturnValue({ bind })
+    const db = { prepare } as unknown as D1Database
+
+    expect(await moveToSpam(db, 'm1')).toBe(true)
+    expect(run).not.toHaveBeenCalled()
+  })
+
+  it('moveToSpam refuses drafts', async () => {
+    const first = vi.fn().mockResolvedValue({ id: 'd1', folder: 'draft' })
+    const bind = vi.fn().mockReturnValue({ first })
+    const prepare = vi.fn().mockReturnValue({ bind })
+    const db = { prepare } as unknown as D1Database
+
+    await expect(moveToSpam(db, 'd1')).resolves.toBe(false)
   })
 
   it('restoreMessage uses direction mapping and clears deleted_at', async () => {
@@ -219,7 +267,18 @@ describe('folder actions', () => {
     expect(bind).toHaveBeenCalledWith('sent', 'm1')
   })
 
-  it('restoreMessage returns null when not in trash', async () => {
+  it('restoreMessage also restores from spam', async () => {
+    const first = vi.fn().mockResolvedValue({ id: 'm1', folder: 'spam', direction: 'inbound' })
+    const run = vi.fn().mockResolvedValue({ meta: { changes: 1 }, success: true })
+    const bind = vi.fn().mockReturnValue({ first, run })
+    const prepare = vi.fn().mockReturnValue({ bind })
+    const db = { prepare } as unknown as D1Database
+
+    await expect(restoreMessage(db, 'm1')).resolves.toEqual({ folder: 'inbox' })
+    expect(bind).toHaveBeenCalledWith('inbox', 'm1')
+  })
+
+  it('restoreMessage returns null when not in trash or spam', async () => {
     const first = vi.fn().mockResolvedValue({ id: 'm1', folder: 'inbox', direction: 'inbound' })
     const bind = vi.fn().mockReturnValue({ first })
     const prepare = vi.fn().mockReturnValue({ bind })
@@ -233,14 +292,69 @@ describe('folder actions', () => {
       .fn()
       .mockResolvedValueOnce({ meta: { changes: 2 }, success: true })
       .mockResolvedValueOnce({ meta: { changes: 3 }, success: true })
-    const prepare = vi.fn().mockReturnValue({ run })
+    const bind = vi.fn().mockReturnValue({ run })
+    const prepare = vi.fn().mockReturnValue({ bind })
     const db = { prepare } as unknown as D1Database
 
     expect(await emptyTrash(db)).toBe(3)
     const tagSql = String(prepare.mock.calls[0]?.[0] ?? '')
     expect(tagSql).toMatch(/DELETE\s+FROM\s+message_tags/i)
     const msgSql = String(prepare.mock.calls[1]?.[0] ?? '')
-    expect(msgSql).toMatch(/DELETE\s+FROM\s+messages\s+WHERE\s+folder\s*=\s*'trash'/i)
+    expect(msgSql).toMatch(/DELETE\s+FROM\s+messages\s+WHERE\s+folder\s*=\s*\?/i)
+    expect(bind).toHaveBeenNthCalledWith(1, 'trash')
+    expect(bind).toHaveBeenNthCalledWith(2, 'trash')
+  })
+
+  it('emptySpam targets the spam folder', async () => {
+    const run = vi
+      .fn()
+      .mockResolvedValueOnce({ meta: { changes: 1 }, success: true })
+      .mockResolvedValueOnce({ meta: { changes: 4 }, success: true })
+    const bind = vi.fn().mockReturnValue({ run })
+    const prepare = vi.fn().mockReturnValue({ bind })
+    const db = { prepare } as unknown as D1Database
+
+    expect(await emptySpam(db)).toBe(4)
+    expect(bind).toHaveBeenNthCalledWith(1, 'spam')
+    expect(bind).toHaveBeenNthCalledWith(2, 'spam')
+  })
+})
+
+describe('purgeExpiredMessages', () => {
+  function mockPurgeDb(changes: number[]) {
+    const bind = vi.fn(() => ({}) as D1PreparedStatement)
+    const prepare = vi.fn().mockReturnValue({ bind })
+    const batch = vi
+      .fn()
+      .mockResolvedValue(changes.map((c) => ({ meta: { changes: c }, success: true })))
+    return { prepare, bind, batch, db: { prepare, batch } as unknown as D1Database }
+  }
+
+  it('deletes per folder using each retention cutoff in one batch', async () => {
+    const { prepare, bind, batch, db } = mockPurgeDb([0, 2, 0, 5])
+    const now = 100 * DAY_MS
+
+    await expect(
+      purgeExpiredMessages(db, { trashDays: 30, spamDays: 7 }, now),
+    ).resolves.toEqual({ trash: 2, spam: 5 })
+
+    expect(batch).toHaveBeenCalledTimes(1)
+    expect(batch.mock.calls[0]?.[0]).toHaveLength(4)
+    expect(bind).toHaveBeenNthCalledWith(2, 'trash', now - 30 * DAY_MS)
+    expect(bind).toHaveBeenNthCalledWith(4, 'spam', now - 7 * DAY_MS)
+    const msgSql = String(prepare.mock.calls[1]?.[0] ?? '')
+    expect(msgSql).toMatch(/deleted_at\s+IS\s+NOT\s+NULL/i)
+    expect(msgSql).toMatch(/deleted_at\s*<\s*\?/i)
+  })
+
+  it('supports the 1 and 90 day bounds', async () => {
+    const { bind, db } = mockPurgeDb([0, 0, 0, 0])
+    const now = 500 * DAY_MS
+
+    await purgeExpiredMessages(db, { trashDays: 1, spamDays: 90 }, now)
+
+    expect(bind).toHaveBeenNthCalledWith(2, 'trash', now - DAY_MS)
+    expect(bind).toHaveBeenNthCalledWith(4, 'spam', now - 90 * DAY_MS)
   })
 })
 
@@ -316,6 +430,85 @@ describe('drafts', () => {
   })
 })
 
+describe('opportunistic purge on trash/spam listing', () => {
+  const secret = 'test-secret-at-least-32-chars!!'
+
+  function mockListDb(batchImpl: ReturnType<typeof vi.fn>) {
+    const stmt: Record<string, unknown> = {
+      all: vi.fn().mockResolvedValue({ results: [] }),
+      first: vi
+        .fn()
+        .mockResolvedValue({ trash_retention_days: 30, spam_retention_days: 30 }),
+      run: vi.fn().mockResolvedValue({ meta: { changes: 0 }, success: true }),
+    }
+    stmt.bind = vi.fn(() => stmt)
+    const prepare = vi.fn(() => stmt)
+    return { prepare, db: { prepare, batch: batchImpl } as unknown as D1Database }
+  }
+
+  async function listRequest(db: D1Database, query: string): Promise<Response> {
+    const app = createApp()
+    const cookie = `${SESSION_COOKIE_NAME}=${await createSessionCookie('user-1', secret)}`
+    const env = {
+      DB: db,
+      ASSETS: {} as Fetcher,
+      COOKIES_SECRET: secret,
+      EMAIL_DOMAIN: 'example.com',
+    } satisfies Env
+    return app.request(
+      `http://localhost/api/messages?${query}`,
+      { headers: { Cookie: cookie } },
+      env,
+    )
+  }
+
+  const okBatch = () =>
+    vi.fn().mockResolvedValue([
+      { meta: { changes: 0 }, success: true },
+      { meta: { changes: 0 }, success: true },
+      { meta: { changes: 0 }, success: true },
+      { meta: { changes: 0 }, success: true },
+    ])
+
+  it('purges when opening the first page of trash', async () => {
+    const batch = okBatch()
+    const { db } = mockListDb(batch)
+
+    const res = await listRequest(db, 'folder=trash')
+    expect(res.status).toBe(200)
+    expect(batch).toHaveBeenCalledTimes(1)
+  })
+
+  it('skips the purge while paginating', async () => {
+    const batch = okBatch()
+    const { db } = mockListDb(batch)
+
+    const res = await listRequest(
+      db,
+      `folder=trash&cursor=${encodeCursor(1000, 'm1')}`,
+    )
+    expect(res.status).toBe(200)
+    expect(batch).not.toHaveBeenCalled()
+  })
+
+  it('leaves ordinary folders alone', async () => {
+    const batch = okBatch()
+    const { db } = mockListDb(batch)
+
+    await listRequest(db, 'folder=inbox')
+    expect(batch).not.toHaveBeenCalled()
+  })
+
+  it('still serves the list when the purge fails', async () => {
+    const batch = vi.fn().mockRejectedValue(new Error('d1 unavailable'))
+    const { db } = mockListDb(batch)
+
+    const res = await listRequest(db, 'folder=spam')
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toEqual({ items: [], nextCursor: null })
+  })
+})
+
 describe('messages routes auth', () => {
   it('returns 401 without session cookie', async () => {
     const app = createApp()
@@ -347,7 +540,7 @@ describe('searchMessages', () => {
     expect(prepare).not.toHaveBeenCalled()
   })
 
-  it('searches subject/from/body excluding trash and draft', async () => {
+  it('searches subject/from/body excluding trash, draft, and spam', async () => {
     const rows = [mockMessageRow({ subject: 'Invoice April' })]
     const { prepare, bind, db } = mockDbForList(rows)
 
@@ -356,10 +549,64 @@ describe('searchMessages', () => {
     expect(result.items).toHaveLength(1)
     expect(result.items[0]?.subject).toBe('Invoice April')
     const sql = String(prepare.mock.calls[0]?.[0] ?? '')
-    expect(sql).toMatch(/folder\s+NOT\s+IN\s*\(\s*'trash'\s*,\s*'draft'\s*\)/i)
+    expect(sql).toMatch(HIDDEN_FOLDERS_RE)
     expect(sql).toMatch(/subject\s+LIKE\s+\?\s+ESCAPE/i)
     expect(sql).toMatch(/from_addr\s+LIKE\s+\?\s+ESCAPE/i)
     expect(sql).toMatch(/text_body\s+LIKE\s+\?\s+ESCAPE/i)
     expect(bind).toHaveBeenCalledWith('%Invoice%', '%Invoice%', '%Invoice%', 21)
+  })
+})
+
+describe('getFolderCounts', () => {
+  it('aggregates folder totals and starred count', async () => {
+    const all = vi.fn().mockResolvedValue({
+      results: [
+        { folder: 'inbox', cnt: 12 },
+        { folder: 'sent', cnt: 3 },
+        { folder: 'draft', cnt: 2 },
+        { folder: 'trash', cnt: 1 },
+        { folder: 'spam', cnt: 7 },
+      ],
+    })
+    const first = vi.fn().mockResolvedValue({ cnt: 5 })
+    const prepare = vi
+      .fn()
+      .mockReturnValueOnce({ all })
+      .mockReturnValueOnce({ first })
+    const db = { prepare } as unknown as D1Database
+
+    await expect(getFolderCounts(db)).resolves.toEqual({
+      inbox: 12,
+      sent: 3,
+      trash: 1,
+      draft: 2,
+      spam: 7,
+      starred: 5,
+    })
+
+    const folderSql = String(prepare.mock.calls[0]?.[0] ?? '')
+    expect(folderSql).toMatch(/GROUP\s+BY\s+folder/i)
+    const starredSql = String(prepare.mock.calls[1]?.[0] ?? '')
+    expect(starredSql).toMatch(/is_starred\s*=\s*1/i)
+    expect(starredSql).toMatch(HIDDEN_FOLDERS_RE)
+  })
+
+  it('defaults missing folders to zero', async () => {
+    const all = vi.fn().mockResolvedValue({ results: [{ folder: 'inbox', cnt: 4 }] })
+    const first = vi.fn().mockResolvedValue(null)
+    const prepare = vi
+      .fn()
+      .mockReturnValueOnce({ all })
+      .mockReturnValueOnce({ first })
+    const db = { prepare } as unknown as D1Database
+
+    await expect(getFolderCounts(db)).resolves.toEqual({
+      inbox: 4,
+      sent: 0,
+      trash: 0,
+      draft: 0,
+      spam: 0,
+      starred: 0,
+    })
   })
 })

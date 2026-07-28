@@ -99,11 +99,46 @@ describe('applyFiltersToMessage', () => {
 
     const sqls = prepare.mock.calls.map((c) => String(c[0]))
     expect(sqls.some((s) => /SET\s+is_starred\s*=\s*1/i.test(s))).toBe(true)
-    expect(sqls.some((s) => /folder\s*=\s*'trash'/.test(s) && /deleted_at/.test(s))).toBe(
+    expect(sqls.some((s) => /SET\s+folder\s*=\s*\?/.test(s) && /deleted_at/.test(s))).toBe(
       true,
     )
+    expect(stmt.bind).toHaveBeenCalledWith('trash', expect.any(Number), 'm1')
     expect(sqls.some((s) => /INSERT\s+OR\s+IGNORE\s+INTO\s+message_tags/i.test(s))).toBe(
       true,
     )
+  })
+
+  it('moves to spam instead of trash when the rule says so', async () => {
+    const messageRow = {
+      id: 'm2',
+      alias_id: 'a1',
+      from_addr: 'promo@spam.example',
+      subject: 'you won',
+      text_body: 'claim now',
+      folder: 'inbox',
+    }
+
+    const filterRow = {
+      id: 'f2',
+      name: 'spam',
+      enabled: 1,
+      priority: 0,
+      match_mode: 'and',
+      conditions_json: JSON.stringify([{ type: 'from_contains', value: 'spam' }]),
+      actions_json: JSON.stringify({ moveToSpam: true }),
+      created_at: 1,
+    }
+
+    const first = vi.fn().mockResolvedValueOnce(messageRow)
+    const all = vi.fn().mockResolvedValue({ results: [filterRow] })
+    const run = vi.fn().mockResolvedValue({ meta: { changes: 1 }, success: true })
+    const stmt = { first, all, run, bind: vi.fn() }
+    stmt.bind.mockReturnValue(stmt)
+    const prepare = vi.fn().mockReturnValue(stmt)
+    const db = { prepare } as unknown as D1Database
+
+    await applyFiltersToMessage(db, 'm2')
+
+    expect(stmt.bind).toHaveBeenCalledWith('spam', expect.any(Number), 'm2')
   })
 })

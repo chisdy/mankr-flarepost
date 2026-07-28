@@ -1,6 +1,7 @@
 import {
   EnvelopeIcon,
   EnvelopeOpenIcon,
+  GaugeIcon,
   GearIcon,
   KeyIcon,
   ListIcon,
@@ -10,9 +11,9 @@ import {
   PlusIcon,
   SignOutIcon,
   StarIcon,
-  TagIcon,
   TrashIcon,
   UserCircleIcon,
+  WarningOctagonIcon,
 } from "@phosphor-icons/react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -40,16 +41,42 @@ import {
 } from "@/components/ui/sheet"
 import { ChangePasswordDialog } from "@/features/auth/change-password-dialog"
 import { api, isApiError } from "@/lib/api"
-import type { Tag } from "@/lib/types"
+import type { FolderCounts, Tag } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 const folders = [
-  { to: "/inbox", labelKey: "nav.inbox", icon: EnvelopeIcon },
-  { to: "/starred", labelKey: "nav.starred", icon: StarIcon },
+  {
+    to: "/inbox",
+    labelKey: "nav.inbox",
+    icon: EnvelopeIcon,
+    countKey: "inbox",
+  },
+  {
+    to: "/starred",
+    labelKey: "nav.starred",
+    icon: StarIcon,
+    countKey: "starred",
+  },
   { to: "/search", labelKey: "nav.search", icon: MagnifyingGlassIcon },
-  { to: "/draft", labelKey: "nav.drafts", icon: NoteBlankIcon },
-  { to: "/sent", labelKey: "nav.sent", icon: PaperPlaneTiltIcon },
-  { to: "/trash", labelKey: "nav.trash", icon: TrashIcon },
+  {
+    to: "/draft",
+    labelKey: "nav.drafts",
+    icon: NoteBlankIcon,
+    countKey: "draft",
+  },
+  {
+    to: "/sent",
+    labelKey: "nav.sent",
+    icon: PaperPlaneTiltIcon,
+    countKey: "sent",
+  },
+  {
+    to: "/spam",
+    labelKey: "nav.spam",
+    icon: WarningOctagonIcon,
+    countKey: "spam",
+  },
+  { to: "/trash", labelKey: "nav.trash", icon: TrashIcon, countKey: "trash" },
 ] as const
 
 function navClassName(isActive: boolean) {
@@ -62,9 +89,10 @@ function navClassName(isActive: boolean) {
 type SidebarNavProps = {
   onNavigate?: () => void
   tags: Tag[]
+  counts: FolderCounts | null
 }
 
-function SidebarNav({ onNavigate, tags }: SidebarNavProps) {
+function SidebarNav({ onNavigate, tags, counts }: SidebarNavProps) {
   const { t } = useTranslation()
 
   return (
@@ -79,17 +107,26 @@ function SidebarNav({ onNavigate, tags }: SidebarNavProps) {
       </Button>
 
       <nav className="flex flex-col gap-1">
-        {folders.map(({ to, labelKey, icon: Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            onClick={onNavigate}
-            className={({ isActive }) => navClassName(isActive)}
-          >
-            <Icon />
-            {t(labelKey)}
-          </NavLink>
-        ))}
+        {folders.map(({ to, labelKey, icon: Icon, ...rest }) => {
+          const countKey = "countKey" in rest ? rest.countKey : undefined
+          const count = countKey && counts ? counts[countKey] : null
+          return (
+            <NavLink
+              key={to}
+              to={to}
+              onClick={onNavigate}
+              className={({ isActive }) => navClassName(isActive)}
+            >
+              <Icon className="shrink-0" />
+              <span className="min-w-0 flex-1 truncate">{t(labelKey)}</span>
+              {count != null && count > 0 ? (
+                <span className="shrink-0 text-[0.65rem] text-muted-foreground tabular-nums">
+                  {count}
+                </span>
+              ) : null}
+            </NavLink>
+          )
+        })}
       </nav>
 
       {tags.length > 0 ? (
@@ -99,29 +136,42 @@ function SidebarNav({ onNavigate, tags }: SidebarNavProps) {
             {t("nav.tags")}
           </p>
           <nav className="flex flex-col gap-1">
-            {tags.map((tag) => (
-              <NavLink
-                key={tag.id}
-                to={`/tags/${tag.id}`}
-                onClick={onNavigate}
-                className={({ isActive }) => navClassName(isActive)}
-              >
-                <TagIcon
-                  style={
-                    tag.color &&
-                    /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(tag.color)
-                      ? { color: tag.color }
-                      : undefined
-                  }
-                />
-                <span className="truncate">{tag.name}</span>
-              </NavLink>
-            ))}
+            {tags.map((tag) => {
+              const color =
+                tag.color &&
+                /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(tag.color)
+                  ? tag.color
+                  : undefined
+              return (
+                <NavLink
+                  key={tag.id}
+                  to={`/tags/${tag.id}`}
+                  onClick={onNavigate}
+                  className={({ isActive }) => navClassName(isActive)}
+                >
+                  <span
+                    aria-hidden
+                    className="size-2.5 shrink-0 rounded-full bg-muted-foreground/50"
+                    style={color ? { backgroundColor: color } : undefined}
+                  />
+                  <span className="truncate">{tag.name}</span>
+                </NavLink>
+              )
+            })}
           </nav>
         </>
       ) : null}
 
       <Separator />
+
+      <NavLink
+        to="/usage"
+        onClick={onNavigate}
+        className={({ isActive }) => navClassName(isActive)}
+      >
+        <GaugeIcon />
+        {t("nav.usage")}
+      </NavLink>
 
       <NavLink
         to="/settings"
@@ -201,11 +251,14 @@ export function AppShell() {
   const [passwordOpen, setPasswordOpen] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [mobileNavPath, setMobileNavPath] = useState(location.pathname)
   const [tags, setTags] = useState<Tag[]>([])
+  const [counts, setCounts] = useState<FolderCounts | null>(null)
 
-  useEffect(() => {
+  if (location.pathname !== mobileNavPath) {
+    setMobileNavPath(location.pathname)
     setMobileNavOpen(false)
-  }, [location.pathname])
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -215,6 +268,20 @@ export function AppShell() {
       })
       .catch(() => {
         if (!cancelled) setTags([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [location.pathname])
+
+  useEffect(() => {
+    let cancelled = false
+    api<FolderCounts>("/api/messages/counts")
+      .then((data) => {
+        if (!cancelled) setCounts(data)
+      })
+      .catch(() => {
+        if (!cancelled) setCounts(null)
       })
     return () => {
       cancelled = true
@@ -250,7 +317,7 @@ export function AppShell() {
           </span>
         </div>
 
-        <SidebarNav tags={tags} />
+        <SidebarNav tags={tags} counts={counts} />
 
         <div className="mt-auto">
           <AccountMenu
@@ -319,7 +386,7 @@ export function AppShell() {
             </SheetDescription>
           </SheetHeader>
 
-          <SidebarNav tags={tags} onNavigate={closeMobileNav} />
+          <SidebarNav tags={tags} counts={counts} onNavigate={closeMobileNav} />
 
           <div className="mt-auto">
             <AccountMenu

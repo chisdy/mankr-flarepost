@@ -15,7 +15,21 @@ export type Alias = {
   createdAt: number
 }
 
-export type Folder = "inbox" | "sent" | "trash" | "draft"
+export type Folder = "inbox" | "sent" | "trash" | "draft" | "spam"
+
+export type FolderCounts = {
+  inbox: number
+  sent: number
+  trash: number
+  draft: number
+  spam: number
+  starred: number
+}
+
+export type MailboxSettings = {
+  trashRetentionDays: number
+  spamRetentionDays: number
+}
 
 export type Tag = {
   id: string
@@ -34,6 +48,7 @@ export type FilterActions = {
   addTagIds?: string[]
   setStarred?: true
   moveToTrash?: true
+  moveToSpam?: true
 }
 
 export type FilterRule = {
@@ -108,4 +123,50 @@ export type ApiKey = {
   usage: ApiKeyUsage
   /** Present only on the create response — shown once, never stored. */
   secret?: string
+}
+
+export type QuotaWindow = "day" | "month" | "total"
+
+export type ProviderStatus = "ok" | "not_configured" | "error"
+
+/** `limit` is the free-plan allowance, not the account's contractual ceiling. */
+export type Quota = {
+  used: number
+  limit: number
+  remaining: number
+  window: QuotaWindow
+}
+
+export type CloudflareErrorReason =
+  | "unauthorized"
+  | "query_failed"
+  | "unreachable"
+
+/** Sent by the worker so these allowances are defined in exactly one place. */
+export type FreeTierLimits = {
+  resendEmailsPerDay: number
+  resendEmailsPerMonth: number
+  workersRequestsPerDay: number
+  d1RowsReadPerDay: number
+  d1RowsWrittenPerDay: number
+  d1StorageBytes: number
+}
+
+/** A `null` metric means the provider did not report it, not that it is zero. */
+export type UsageSnapshot = {
+  fetchedAt: string
+  freeTier: FreeTierLimits
+  resend: {
+    status: ProviderStatus
+    daily: Quota | null
+    monthly: Quota | null
+  }
+  cloudflare: {
+    status: ProviderStatus
+    reason: CloudflareErrorReason | null
+    workersRequests: Quota | null
+    d1RowsRead: Quota | null
+    d1RowsWritten: Quota | null
+    d1StorageBytes: Quota | null
+  }
 }

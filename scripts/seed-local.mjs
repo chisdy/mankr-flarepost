@@ -139,7 +139,7 @@ const FILTERS = [
   },
   {
     id: 'filter-spam',
-    name: '垃圾邮件直接进回收站',
+    name: '可疑来信直接进垃圾邮件',
     enabled: 1,
     priority: 5,
     match_mode: 'or',
@@ -147,7 +147,7 @@ const FILTERS = [
       { type: 'from_contains', value: 'noise.biz' },
       { type: 'subject_contains', value: '中奖' },
     ],
-    actions: { moveToTrash: true },
+    actions: { moveToSpam: true },
   },
   {
     id: 'filter-legacy',
@@ -587,6 +587,35 @@ for (let i = 0; i < 14; i++) {
   })
 }
 
+// --------------------------------------------------------------------- spam
+
+const SPAM_SUBJECTS = [
+  '恭喜您中奖了，请立即领取',
+  'Your account will be suspended — verify now',
+  '限时优惠：0 元购',
+  '【紧急】账单逾期通知',
+  'Re: invoice attached',
+  '低价代开发票',
+]
+
+cursor = NOW - 3 * HOUR
+for (let i = 0; i < 9; i++) {
+  cursor -= between(4 * HOUR, 30 * HOUR)
+  addMessage({
+    id: `msg-spam-${String(i + 1).padStart(3, '0')}`,
+    alias_id: i % 2 === 0 ? 'alias-hello' : 'alias-work',
+    folder: 'spam',
+    direction: 'inbound',
+    from_addr: `promo-${i + 1}@noise.biz`,
+    to_addrs: [addressOf(i % 2 === 0 ? 'alias-hello' : 'alias-work')],
+    subject: SPAM_SUBJECTS[i % SPAM_SUBJECTS.length],
+    text_body: '本地样本：用于查看垃圾邮件列表与自动清理设置的效果。',
+    is_read: 0,
+    created_at: cursor,
+    deleted_at: cursor + between(30 * MINUTE, 12 * HOUR),
+  })
+}
+
 // ------------------------------------------------------------------ api keys
 
 const sha256Hex = (value) => createHash('sha256').update(value).digest('hex')
@@ -713,6 +742,13 @@ const parts = [
   'DELETE FROM tags;',
   'DELETE FROM messages;',
   'DELETE FROM aliases;',
+  'DELETE FROM mailbox_settings;',
+  '',
+  insertMany(
+    'mailbox_settings',
+    ['id', 'trash_retention_days', 'spam_retention_days'],
+    [{ id: 1, trash_retention_days: 30, spam_retention_days: 30 }],
+  ),
   '',
   flag('admin') ? adminSql() : '',
   insertMany(
@@ -821,7 +857,8 @@ console.log('')
 console.log(
   `[seed] aliases ${ALIASES.length} · tags ${TAGS.length} · filters ${FILTERS.length} · ` +
     `messages ${messages.length} (inbox ${byFolder.inbox}, sent ${byFolder.sent}, ` +
-    `draft ${byFolder.draft}, trash ${byFolder.trash}) · tag links ${messageTags.length} · ` +
+    `draft ${byFolder.draft}, trash ${byFolder.trash}, spam ${byFolder.spam}) · ` +
+    `tag links ${messageTags.length} · ` +
     `api keys ${API_KEYS.length} · send logs ${sendLogs.length}`,
 )
 if (flag('admin')) {

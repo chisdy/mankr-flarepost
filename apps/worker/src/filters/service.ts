@@ -246,7 +246,7 @@ export async function deleteFilter(db: D1Database, id: string): Promise<boolean>
 
 /**
  * Apply enabled filters to a newly inserted message.
- * Missing tag IDs are skipped. Trash sets folder + deleted_at.
+ * Missing tag IDs are skipped. Trash and spam set folder + deleted_at.
  */
 export async function applyFiltersToMessage(
   db: D1Database,
@@ -281,7 +281,12 @@ export async function applyFiltersToMessage(
     filters,
   )
 
-  if (!actions.addTagIds?.length && !actions.setStarred && !actions.moveToTrash) {
+  if (
+    !actions.addTagIds?.length &&
+    !actions.setStarred &&
+    !actions.moveToTrash &&
+    !actions.moveToSpam
+  ) {
     return
   }
 
@@ -289,11 +294,11 @@ export async function applyFiltersToMessage(
     await db.prepare('UPDATE messages SET is_starred = 1 WHERE id = ?').bind(messageId).run()
   }
 
-  if (actions.moveToTrash && row.folder !== 'trash') {
-    const deletedAt = Date.now()
+  const targetFolder = actions.moveToSpam ? 'spam' : actions.moveToTrash ? 'trash' : null
+  if (targetFolder && row.folder !== targetFolder) {
     await db
-      .prepare(`UPDATE messages SET folder = 'trash', deleted_at = ? WHERE id = ?`)
-      .bind(deletedAt, messageId)
+      .prepare('UPDATE messages SET folder = ?, deleted_at = ? WHERE id = ?')
+      .bind(targetFolder, Date.now(), messageId)
       .run()
   }
 

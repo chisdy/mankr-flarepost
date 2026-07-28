@@ -10,7 +10,9 @@
 
 ## 变量速查表
 
-三个配置项，**都在 Cloudflare 侧设置，仓库里一个都不存**：
+所有配置项**都在 Cloudflare 侧设置，仓库里一个都不存**。
+
+必填三项，收发信缺一不可：
 
 | 名称 | 类型 | 设置位置 | 说明 |
 |------|------|----------|------|
@@ -18,9 +20,18 @@
 | `COOKIES_SECRET` | Secret | `wrangler secret put` 或 Dashboard | 会话签名密钥 |
 | `RESEND_API_KEY` | Secret | `wrangler secret put` 或 Dashboard | 发信凭证 |
 
-三个值都由 **步骤 6** 统一设置，`wrangler.toml` 里不含任何一个——这是公开仓库，域名写进 `[vars]` 会跟着每个 fork 跑。仓库里有 `keep_vars = true`，所以 `wrangler deploy` 不会覆盖你在 Dashboard 里设的明文变量（Secret 本来就不会被覆盖）。
+可选两项，只影响 `/usage`「用量」页里的 Cloudflare 卡片，不配就显示「未配置」，收发信照常：
 
-本地开发是另一套：三个值都写在 `.dev.vars` 里，该文件已被 gitignore。
+| 名称 | 类型 | 设置位置 | 说明 |
+|------|------|----------|------|
+| `CLOUDFLARE_ACCOUNT_ID` | 明文变量 | Dashboard 或 `.dev.vars` | 账号 ID，`npx wrangler whoami` 可查 |
+| `CLOUDFLARE_API_TOKEN` | Secret | `wrangler secret put` 或 Dashboard | 只读用量 token，权限见步骤 6 |
+
+两项**缺一即视为未配置**，不会拿半套凭证去打接口。Resend 卡片复用已有的 `RESEND_API_KEY`，不需要额外配置。
+
+必填三项由 **步骤 6** 统一设置，`wrangler.toml` 里不含任何一个——这是公开仓库，域名写进 `[vars]` 会跟着每个 fork 跑。仓库里有 `keep_vars = true`，所以 `wrangler deploy` 不会覆盖你在 Dashboard 里设的明文变量（Secret 本来就不会被覆盖）。
+
+本地开发是另一套：这些值都写在 `.dev.vars` 里，该文件已被 gitignore。
 
 ---
 
@@ -122,9 +133,9 @@ pnpm run deploy
 
 ---
 
-## 步骤 6：设置三个环境变量
+## 步骤 6：设置环境变量
 
-登录、发信、别名后缀分别依赖这三个值，全部在 Cloudflare 侧设置：
+登录、发信、别名后缀分别依赖这三个必填值，全部在 Cloudflare 侧设置：
 
 | 名称 | 类型 | 值 |
 |------|------|-----|
@@ -173,6 +184,39 @@ npx wrangler secret list
 > 找不到 **Variables and Secrets**？说明 Worker 还没部署成功过——先做完步骤 5。
 >
 > 这里设的值**不会**被后续 `pnpm run deploy` 覆盖：仓库 `wrangler.toml` 里有 `keep_vars = true`，Secret 本身也从不被部署覆盖。
+
+### 方式 C：可选——打开「用量」页的 Cloudflare 卡片
+
+`/usage` 页展示免费额度的消耗情况。Resend 那半边复用 `RESEND_API_KEY`，开箱可用；Cloudflare 那半边需要再加两个值，不加就显示「未配置」，收发信不受影响。
+
+1. 拿 Account ID：
+
+```bash
+npx wrangler whoami
+```
+
+复制输出里的 Account ID，它不是密钥，用明文 / Text 类型设成 `CLOUDFLARE_ACCOUNT_ID`。
+
+2. 建一个**只读** token：Dashboard 右上头像 → **My Profile** → **API Tokens** → **Create Token** → **Create Custom Token**，权限只给一条：
+
+| Type | 资源 | 权限 |
+|------|------|------|
+| Account | Account Analytics | **Read** |
+
+不要给 Workers Scripts Edit、D1 Edit 之类的写权限。和步骤 2 里部署用的 token **分开建**——监控 token 即使泄露也只能读用量。
+
+3. 设成 Secret：
+
+```bash
+npx wrangler secret put CLOUDFLARE_API_TOKEN
+# 粘贴刚创建的 token，回车
+```
+
+**验证：** 部署后登录，打开 `/usage`，Cloudflare 卡片应显示 Worker 请求数与 D1 读写行数的环形图，而不是「未配置」。
+
+> 页面上的上限值写死的是**免费计划**额度（Workers 10 万请求/天、D1 500 万行读/天、10 万行写/天、5 GB 存储；Resend 100 封/天、3000 封/月）。升级到付费计划后真实上限更高，页面数字只应看作免费额度的参考。
+>
+> 「无数据」不等于 0：Resend 的每日额度头只对免费账号返回，Paid 账号那一栏会显示无数据。
 
 ---
 

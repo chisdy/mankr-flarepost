@@ -31,6 +31,12 @@
       },
       "EMAIL_DOMAIN": {
         "description": "Your mail domain without `@` (e.g. `example.com`). Aliases become `local@EMAIL_DOMAIN`."
+      },
+      "CLOUDFLARE_ACCOUNT_ID": {
+        "description": "Optional. Account ID from `wrangler whoami`, used by the Usage page. Required together with CLOUDFLARE_API_TOKEN."
+      },
+      "CLOUDFLARE_API_TOKEN": {
+        "description": "Optional. Read-only token (Account Analytics → Read) used by the Usage page to read free-tier consumption. Keep it separate from any deploy token."
       }
     }
   }

@@ -42,6 +42,16 @@ describe('parseConditions / parseActions', () => {
     expect(parseActions({})).toBeNull()
     expect(parseActions({ setStarred: true })).toEqual({ setStarred: true })
   })
+
+  it('parses moveToSpam', () => {
+    expect(parseActions({ moveToSpam: true })).toEqual({ moveToSpam: true })
+  })
+
+  it('drops moveToTrash when the rule also asks for spam', () => {
+    expect(parseActions({ moveToTrash: true, moveToSpam: true })).toEqual({
+      moveToSpam: true,
+    })
+  })
 })
 
 describe('evaluateFilter', () => {
@@ -126,5 +136,11 @@ describe('reduceActions / collectMatchingActions', () => {
     expect(
       reduceActions([{ addTagIds: ['a'] }, { addTagIds: ['a', 'b'], setStarred: true }]),
     ).toEqual({ addTagIds: ['a', 'b'], setStarred: true })
+  })
+
+  it('reduceActions lets spam win over trash across rules', () => {
+    expect(reduceActions([{ moveToTrash: true }, { moveToSpam: true }])).toEqual({
+      moveToSpam: true,
+    })
   })
 })

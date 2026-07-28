@@ -3,17 +3,22 @@ import { findAliasById } from '../aliases/service'
 import type { Env } from '../env'
 import { jsonError } from '../http/errors'
 import type { AppVariables } from '../http/middleware'
+import { getMailboxSettings } from '../mailbox-settings/service'
 import {
   InvalidCursorError,
   deleteDraft,
+  emptySpam,
   emptyTrash,
+  getFolderCounts,
   getMessage,
   insertDraft,
   isDraft,
   isFolder,
   listMessages,
   markRead,
+  moveToSpam,
   moveToTrash,
+  purgeExpiredMessages,
   restoreMessage,
   searchMessages,
   setStarred,
@@ -92,7 +97,29 @@ async function parseDraftBody(
   }
 }
 
+/**
+ * Retention purge also runs opportunistically when trash/spam is opened, so a
+ * shortened retention window applies without waiting for the nightly cron.
+ * Best-effort: cleanup must never make the folder unreadable.
+ */
+async function purgeExpired(c: MessageContext): Promise<void> {
+  try {
+    const settings = await getMailboxSettings(c.env.DB)
+    await purgeExpiredMessages(c.env.DB, {
+      trashDays: settings.trashRetentionDays,
+      spamDays: settings.spamRetentionDays,
+    })
+  } catch {
+    // Leave expired rows for the cron rather than failing the list request.
+  }
+}
+
 export function registerMessageRoutes(app: MessageApp): void {
+  app.get('/api/messages/counts', async (c) => {
+    const counts = await getFolderCounts(c.env.DB)
+    return c.json(counts)
+  })
+
   app.get('/api/messages', async (c) => {
     const starredRaw = c.req.query('starred')
     const tagId = c.req.query('tagId')?.trim() || undefined
@@ -121,6 +148,11 @@ export function registerMessageRoutes(app: MessageApp): void {
         return jsonError(c, 400, 'invalid_folder')
       }
 
+      // First page only: re-purging mid-pagination would shift the cursor window.
+      if (!cursor && (folderRaw === 'trash' || folderRaw === 'spam')) {
+        await purgeExpired(c)
+      }
+
       const result = await listMessages(c.env.DB, {
         folder: folderRaw,
         limit,
@@ -135,9 +167,14 @@ export function registerMessageRoutes(app: MessageApp): void {
     }
   })
 
-  // Physical delete all trash — register before :id routes for clarity
+  // Physical delete all trash / spam — register before :id routes for clarity
   app.delete('/api/messages/trash', async (c) => {
     const deleted = await emptyTrash(c.env.DB)
+    return c.json({ deleted })
+  })
+
+  app.delete('/api/messages/spam', async (c) => {
+    const deleted = await emptySpam(c.env.DB)
     return c.json({ deleted })
   })
 
@@ -228,6 +265,12 @@ export function registerMessageRoutes(app: MessageApp): void {
 
   app.post('/api/messages/:id/trash', async (c) => {
     const ok = await moveToTrash(c.env.DB, c.req.param('id'))
+    if (!ok) return jsonError(c, 404, 'not_found')
+    return c.json({ ok: true })
+  })
+
+  app.post('/api/messages/:id/spam', async (c) => {
+    const ok = await moveToSpam(c.env.DB, c.req.param('id'))
     if (!ok) return jsonError(c, 404, 'not_found')
     return c.json({ ok: true })
   })

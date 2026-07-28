@@ -4,10 +4,12 @@ import { registerApiKeyRoutes } from '../api-keys/routes'
 import { registerAliasRoutes } from '../aliases/routes'
 import { registerAuthRoutes } from '../auth/routes'
 import { registerFilterRoutes } from '../filters/routes'
+import { registerMailboxSettingsRoutes } from '../mailbox-settings/routes'
 import { registerMessageRoutes } from '../messages/routes'
 import { registerPublicSendRoutes } from '../send/public-routes'
 import { registerSendRoutes } from '../send/routes'
 import { registerTagRoutes } from '../tags/routes'
+import { registerUsageRoutes } from '../usage/routes'
 import { jsonError } from './errors'
 import { requireSession, type AppVariables } from './middleware'
 
@@ -25,6 +27,8 @@ export function createApp() {
   registerApiKeyRoutes(app)
   registerTagRoutes(app)
   registerFilterRoutes(app)
+  registerUsageRoutes(app)
+  registerMailboxSettingsRoutes(app)
   // Send before message :id routes so /api/messages/send is unambiguous
   registerSendRoutes(app)
   registerMessageRoutes(app)

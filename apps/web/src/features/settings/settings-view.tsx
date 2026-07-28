@@ -39,6 +39,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { ChangePasswordDialog } from "@/features/auth/change-password-dialog"
 import { AliasesSettings } from "@/features/settings/aliases-settings"
 import { ApiKeysSettings } from "@/features/settings/api-keys-settings"
+import { RetentionSettings } from "@/features/settings/retention-settings"
 import { TagsFiltersSettings } from "@/features/settings/tags-filters-settings"
 import { api, isApiError } from "@/lib/api"
 import type { Alias, AuthUser } from "@/lib/types"
@@ -320,11 +321,14 @@ export function SettingsView() {
             )}
 
             {activeTab === "mail" && (
-              <AliasesSettings
-                aliases={aliases}
-                loading={aliasesLoading}
-                onAliasesChange={setAliases}
-              />
+              <div className="flex flex-col gap-6">
+                <AliasesSettings
+                  aliases={aliases}
+                  loading={aliasesLoading}
+                  onAliasesChange={setAliases}
+                />
+                <RetentionSettings />
+              </div>
             )}
 
             {activeTab === "tags" && <TagsFiltersSettings aliases={aliases} />}

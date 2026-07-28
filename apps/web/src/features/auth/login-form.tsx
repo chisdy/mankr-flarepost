@@ -8,6 +8,7 @@ import { z } from "zod"
 
 import { useAuth } from "@/components/auth-gate"
 import { LanguageSwitcher } from "@/components/language-switcher"
+import { PasswordInput } from "@/components/password-input"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -111,9 +112,8 @@ export function LoginForm() {
               </Field>
               <Field data-invalid={!!form.formState.errors.password || undefined}>
                 <FieldLabel htmlFor="login-password">{t("auth.password")}</FieldLabel>
-                <Input
+                <PasswordInput
                   id="login-password"
-                  type="password"
                   autoComplete="current-password"
                   aria-invalid={!!form.formState.errors.password}
                   {...form.register("password")}
@@ -124,7 +124,7 @@ export function LoginForm() {
           </form>
         </CardContent>
         <CardFooter className="flex flex-col items-stretch gap-3">
-          <Button type="submit" form="login-form" disabled={submitting}>
+          <Button type="submit" form="login-form" size="lg" disabled={submitting}>
             {submitting ? t("auth.signingIn") : t("auth.signIn")}
           </Button>
           {needsSetup ? (

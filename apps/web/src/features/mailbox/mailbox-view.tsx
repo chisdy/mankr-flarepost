@@ -38,7 +38,7 @@ function modeFromLocation(
     return { kind: "tag", tagId: tagIdParam || tagMatch![1]! }
   }
   const seg = pathname.replace(/^\//, "").split("/")[0] ?? ""
-  if (seg === "sent" || seg === "trash" || seg === "draft") {
+  if (seg === "sent" || seg === "trash" || seg === "draft" || seg === "spam") {
     return { kind: "folder", folder: seg }
   }
   return { kind: "folder", folder: "inbox" }
@@ -125,12 +125,14 @@ export function MailboxView() {
       sent: t("nav.sent"),
       trash: t("nav.trash"),
       draft: t("nav.drafts"),
+      spam: t("nav.spam"),
     }
     const empties: Record<Folder, string> = {
       inbox: t("mailbox.inboxEmpty"),
       sent: t("mailbox.sentEmpty"),
       trash: t("mailbox.trashEmpty"),
       draft: t("mailbox.draftEmpty"),
+      spam: t("mailbox.spamEmpty"),
     }
     return { title: titles[mode.folder], empty: empties[mode.folder] }
   }, [mode, t, tagName])
@@ -259,11 +261,13 @@ export function MailboxView() {
     setSearchParams(q ? { q } : {}, { replace: true })
   }
 
-  async function emptyTrash() {
-    if (!window.confirm(t("mailbox.emptyConfirm"))) return
+  async function emptyFolder(target: "trash" | "spam") {
+    const confirmKey =
+      target === "spam" ? "mailbox.emptySpamConfirm" : "mailbox.emptyConfirm"
+    if (!window.confirm(t(confirmKey))) return
     setEmptying(true)
     try {
-      await api("/api/messages/trash", { method: "DELETE" })
+      await api(`/api/messages/${target}`, { method: "DELETE" })
       toast.success(t("mailbox.emptied"))
       await reload()
     } catch (err) {
@@ -309,16 +313,20 @@ export function MailboxView() {
       <PageHeader
         title={meta.title}
         actions={
-          folder === "trash" ? (
+          folder === "trash" || folder === "spam" ? (
             <Button
               type="button"
               variant="outline"
               size="sm"
               disabled={emptying || items.length === 0}
-              onClick={() => void emptyTrash()}
+              onClick={() => void emptyFolder(folder)}
             >
               <TrashIcon data-icon="inline-start" />
-              {emptying ? t("mailbox.emptying") : t("mailbox.emptyTrash")}
+              {emptying
+                ? t("mailbox.emptying")
+                : folder === "spam"
+                  ? t("mailbox.emptySpam")
+                  : t("mailbox.emptyTrash")}
             </Button>
           ) : null
         }
@@ -411,14 +419,19 @@ export function MailboxView() {
                             className={cn(
                               "min-w-0 truncate text-sm sm:w-40 sm:shrink-0",
                               !item.isRead && listFolder !== "draft"
-                                ? "font-semibold"
-                                : "text-muted-foreground"
+                                ? "font-semibold text-foreground"
+                                : "text-muted-foreground/70"
                             )}
                           >
                             {peer}
                           </span>
                           <time
-                            className="shrink-0 text-xs text-muted-foreground tabular-nums sm:order-last"
+                            className={cn(
+                              "shrink-0 text-xs tabular-nums sm:order-last",
+                              !item.isRead && listFolder !== "draft"
+                                ? "text-muted-foreground"
+                                : "text-muted-foreground/55"
+                            )}
                             dateTime={new Date(item.createdAt).toISOString()}
                             key={`${item.id}-${i18n.language}`}
                           >
@@ -429,8 +442,8 @@ export function MailboxView() {
                           className={cn(
                             "min-w-0 truncate text-sm sm:flex-1",
                             !item.isRead && listFolder !== "draft"
-                              ? "font-semibold"
-                              : "text-foreground/90"
+                              ? "font-semibold text-foreground"
+                              : "text-muted-foreground"
                           )}
                         >
                           {item.subject || t("app.noSubject")}
