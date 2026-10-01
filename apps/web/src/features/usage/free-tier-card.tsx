@@ -1,6 +1,8 @@
-import { LightningIcon } from "@phosphor-icons/react"
+import { ZapIcon } from "@hugeicons/core-free-icons"
+
 import { useTranslation } from "react-i18next"
 
+import { Icon } from "@/components/icon"
 import {
   Card,
   CardContent,
@@ -78,7 +80,7 @@ export function FreeTierCard({
     <Card size="sm">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-sm">
-          <LightningIcon className="size-4 text-primary" />
+          <Icon icon={ZapIcon} className="size-4 text-primary" />
           {t("usage.freeTierTitle")}
         </CardTitle>
         <CardDescription className="text-xs">

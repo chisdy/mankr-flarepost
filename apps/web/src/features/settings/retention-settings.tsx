@@ -1,8 +1,10 @@
-import { BroomIcon } from "@phosphor-icons/react"
+import { CleanIcon } from "@hugeicons/core-free-icons"
+
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
+import { Icon } from "@/components/icon"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -94,7 +96,7 @@ export function RetentionSettings() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <BroomIcon className="size-4 text-primary" />
+          <Icon icon={CleanIcon} className="size-4 text-primary" />
           {t("settings.retention")}
         </CardTitle>
         <CardDescription>{t("settings.retentionHint")}</CardDescription>
@@ -122,7 +124,9 @@ export function RetentionSettings() {
                 {t("settings.retentionRange")}
               </FieldDescription>
               {trashInvalid ? (
-                <FieldError errors={[{ message: t("settings.retentionInvalid") }]} />
+                <FieldError
+                  errors={[{ message: t("settings.retentionInvalid") }]}
+                />
               ) : null}
             </Field>
 
@@ -146,7 +150,9 @@ export function RetentionSettings() {
                 {t("settings.retentionRange")}
               </FieldDescription>
               {spamInvalid ? (
-                <FieldError errors={[{ message: t("settings.retentionInvalid") }]} />
+                <FieldError
+                  errors={[{ message: t("settings.retentionInvalid") }]}
+                />
               ) : null}
             </Field>
           </FieldGroup>

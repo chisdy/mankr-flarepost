@@ -1,8 +1,10 @@
-import { PaperPlaneTiltIcon } from "@phosphor-icons/react"
+import { SentIcon } from "@hugeicons/core-free-icons"
+
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
+import { Icon } from "@/components/icon"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -67,7 +69,7 @@ export function SendProvidersSettings() {
   function applySnapshot(data: SendProvidersSnapshot) {
     setSnapshot(data)
     setActiveChoice(
-      data.activeSource === "database" ? data.activeProvider : FOLLOW_ENV,
+      data.activeSource === "database" ? data.activeProvider : FOLLOW_ENV
     )
     setDraftKeys({ resend: "", brevo: "", maileroo: "" })
     setClearFlags({})
@@ -82,7 +84,9 @@ export function SendProvidersSettings() {
       .catch((err) => {
         if (!cancelled) {
           toast.error(
-            isApiError(err) ? err.message : t("settings.sendProvidersLoadFailed"),
+            isApiError(err)
+              ? err.message
+              : t("settings.sendProvidersLoadFailed")
           )
         }
       })
@@ -112,9 +116,7 @@ export function SendProvidersSettings() {
         secrets?: Array<{ provider: SendProviderId; apiKey: string }>
       } = {
         activeProvider:
-          activeChoice === FOLLOW_ENV
-            ? null
-            : (activeChoice as SendProviderId),
+          activeChoice === FOLLOW_ENV ? null : (activeChoice as SendProviderId),
       }
       if (secrets.length > 0) body.secrets = secrets
 
@@ -135,7 +137,7 @@ export function SendProvidersSettings() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <PaperPlaneTiltIcon className="size-4 text-primary" />
+          <Icon icon={SentIcon} className="size-4 text-primary" />
           {t("settings.sendProviders")}
         </CardTitle>
         <CardDescription>{t("settings.sendProvidersHint")}</CardDescription>
@@ -180,12 +182,14 @@ export function SendProvidersSettings() {
 
             {PROVIDERS.map((provider) => {
               const status = snapshot?.providers.find(
-                (p) => p.provider === provider,
+                (p) => p.provider === provider
               )
               const clearing = Boolean(clearFlags[provider])
               const placeholder = clearing
                 ? t("settings.sendKeyWillClear")
-                : status?.configured && status.source === "database" && status.hint
+                : status?.configured &&
+                    status.source === "database" &&
+                    status.hint
                   ? t("settings.sendKeyHintStored", { hint: status.hint })
                   : status?.configured && status.source === "env"
                     ? t("settings.sendKeyHintEnv", { envVar: status.envVar })

@@ -1,10 +1,7 @@
-import {
-  DesktopIcon,
-  MoonIcon,
-  SunIcon,
-} from "@phosphor-icons/react"
+import { ComputerIcon, MoonIcon, Sun01Icon } from "@hugeicons/core-free-icons"
 import { useTranslation } from "react-i18next"
 
+import { Icon } from "@/components/icon"
 import { useTheme } from "@/components/theme-provider"
 import Segmented from "@/components/ui/segmented"
 import { cn } from "@/lib/utils"
@@ -13,9 +10,9 @@ const THEME_OPTIONS = ["light", "dark", "system"] as const
 type ThemeOption = (typeof THEME_OPTIONS)[number]
 
 const ICON_MAP = {
-  light: SunIcon,
+  light: Sun01Icon,
   dark: MoonIcon,
-  system: DesktopIcon,
+  system: ComputerIcon,
 } as const
 
 const LABEL_MAP = {
@@ -40,10 +37,9 @@ export function ThemeSwitcher({ className, id }: ThemeSwitcherProps) {
         onChange={(next) => setTheme(next)}
         options={THEME_OPTIONS}
         renderLabel={(val) => {
-          const Icon = ICON_MAP[val]
           return (
             <>
-              <Icon className="size-4 shrink-0" />
+              <Icon icon={ICON_MAP[val]} className="size-4 shrink-0" />
               <span>{t(LABEL_MAP[val])}</span>
             </>
           )

@@ -1,8 +1,9 @@
-import { XIcon } from "@phosphor-icons/react"
+import { Cancel01Icon } from "@hugeicons/core-free-icons"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Link } from "react-router"
 
+import { Icon } from "@/components/icon"
 import { Button } from "@/components/ui/button"
 
 const STORAGE_KEY = "mankr.onboarding.dismissed"
@@ -57,7 +58,7 @@ export function OnboardingGuide({
             aria-label={t("onboarding.dismiss")}
             onClick={onDismiss}
           >
-            <XIcon />
+            <Icon icon={Cancel01Icon} />
           </Button>
         ) : null}
       </div>
@@ -88,7 +89,11 @@ export function OnboardingGuide({
 }
 
 /** Dismissible first-login banner shown until the user closes it. */
-export function OnboardingBanner({ aliasCount }: { aliasCount: number | null }) {
+export function OnboardingBanner({
+  aliasCount,
+}: {
+  aliasCount: number | null
+}) {
   const [visible, setVisible] = useState(() => !isOnboardingDismissed())
 
   if (!visible) return null

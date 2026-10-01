@@ -1,5 +1,10 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { FloppyDiskIcon, PaperPlaneTiltIcon, TrashIcon } from "@phosphor-icons/react"
+import {
+  Delete02Icon,
+  FloppyDiskIcon,
+  SentIcon,
+} from "@hugeicons/core-free-icons"
+
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { useTranslation } from "react-i18next"
@@ -7,6 +12,7 @@ import { useNavigate, useSearchParams } from "react-router"
 import { toast } from "sonner"
 import { z } from "zod"
 
+import { Icon } from "@/components/icon"
 import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
 import {
@@ -60,11 +66,13 @@ export function ComposeView() {
   const [savingDraft, setSavingDraft] = useState(false)
   const [deletingDraft, setDeletingDraft] = useState(false)
   const [replyToMessageId, setReplyToMessageId] = useState<string | undefined>()
-  const [draftId, setDraftId] = useState<string | undefined>(draftIdParam ?? undefined)
-  const [editorKey, setEditorKey] = useState(0)
-  const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">(
-    "idle"
+  const [draftId, setDraftId] = useState<string | undefined>(
+    draftIdParam ?? undefined
   )
+  const [editorKey, setEditorKey] = useState(0)
+  const [autoSaveStatus, setAutoSaveStatus] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle")
   const draftIdRef = useRef(draftId)
   const savingRef = useRef(false)
   const skipAutoSaveRef = useRef(true)
@@ -83,17 +91,14 @@ export function ComposeView() {
         to: z
           .string()
           .trim()
-          .refine(
-            (value) => {
-              if (!value) return true
-              return value
-                .split(/[,;\s]+/)
-                .map((s) => s.trim())
-                .filter(Boolean)
-                .every((addr) => addr.includes("@"))
-            },
-            t("compose.toInvalid")
-          ),
+          .refine((value) => {
+            if (!value) return true
+            return value
+              .split(/[,;\s]+/)
+              .map((s) => s.trim())
+              .filter(Boolean)
+              .every((addr) => addr.includes("@"))
+          }, t("compose.toInvalid")),
         subject: z.string(),
         html: z.string(),
       }),
@@ -116,7 +121,9 @@ export function ComposeView() {
                 .every((addr) => addr.includes("@")),
             t("compose.toInvalid")
           ),
-        html: z.string().refine((v) => htmlHasText(v), t("compose.bodyRequired")),
+        html: z
+          .string()
+          .refine((v) => htmlHasText(v), t("compose.bodyRequired")),
       }),
     [composeSchema, t]
   )
@@ -172,7 +179,9 @@ export function ComposeView() {
     async function bootstrap() {
       setLoading(true)
       try {
-        const { aliases: list } = await api<{ aliases: Alias[] }>("/api/aliases")
+        const { aliases: list } = await api<{ aliases: Alias[] }>(
+          "/api/aliases"
+        )
         if (cancelled) return
 
         const enabled = list.filter((a) => a.enabled)
@@ -189,7 +198,9 @@ export function ComposeView() {
         }
 
         if (draftIdParam) {
-          const original = await api<MessageDetail>(`/api/messages/${draftIdParam}`)
+          const original = await api<MessageDetail>(
+            `/api/messages/${draftIdParam}`
+          )
           if (cancelled) return
           if (original.folder !== "draft") {
             toast.error(t("compose.notADraft"))
@@ -225,7 +236,9 @@ export function ComposeView() {
           }
           setReplyToMessageId(original.id)
         } else if (forwardId) {
-          const original = await api<MessageDetail>(`/api/messages/${forwardId}`)
+          const original = await api<MessageDetail>(
+            `/api/messages/${forwardId}`
+          )
           if (cancelled) return
           const forwardAlias =
             enabled.find((a) => a.id === original.aliasId) ?? defaultAlias
@@ -319,7 +332,10 @@ export function ComposeView() {
       return true
     } catch (err) {
       if (opts.silent) setAutoSaveStatus("error")
-      else toast.error(isApiError(err) ? err.message : t("compose.draftSaveFailed"))
+      else
+        toast.error(
+          isApiError(err) ? err.message : t("compose.draftSaveFailed")
+        )
       return false
     } finally {
       if (!opts.silent) setSavingDraft(false)
@@ -374,7 +390,9 @@ export function ComposeView() {
       toast.success(t("compose.draftDeleted"))
       navigate("/draft")
     } catch (err) {
-      toast.error(isApiError(err) ? err.message : t("compose.draftDeleteFailed"))
+      toast.error(
+        isApiError(err) ? err.message : t("compose.draftDeleteFailed")
+      )
       skipAutoSaveRef.current = false
     } finally {
       setDeletingDraft(false)
@@ -418,7 +436,9 @@ export function ComposeView() {
       if (isApiError(err)) {
         const code = err.body.error as SendErrorCode | undefined
         toast.error(
-          (code && t(`compose.errors.${code}`)) || err.message || t("compose.sendFailed")
+          (code && t(`compose.errors.${code}`)) ||
+            err.message ||
+            t("compose.sendFailed")
         )
       } else {
         toast.error(t("compose.sendFailed"))
@@ -442,7 +462,9 @@ export function ComposeView() {
         <PageHeader title={t("compose.title")} />
         <ScrollArea className="min-h-0 flex-1">
           <div className="flex flex-col gap-3 px-4 py-6 sm:px-6">
-            <p className="text-sm text-muted-foreground">{t("compose.needAlias")}</p>
+            <p className="text-sm text-muted-foreground">
+              {t("compose.needAlias")}
+            </p>
             <Button
               type="button"
               variant="outline"
@@ -491,8 +513,12 @@ export function ComposeView() {
           onSubmit={form.handleSubmit(onSubmit)}
         >
           <FieldGroup>
-            <Field data-invalid={!!form.formState.errors.fromAliasId || undefined}>
-              <FieldLabel htmlFor="compose-from">{t("compose.from")}</FieldLabel>
+            <Field
+              data-invalid={!!form.formState.errors.fromAliasId || undefined}
+            >
+              <FieldLabel htmlFor="compose-from">
+                {t("compose.from")}
+              </FieldLabel>
               <Controller
                 control={form.control}
                 name="fromAliasId"
@@ -538,12 +564,16 @@ export function ComposeView() {
             </Field>
 
             <Field>
-              <FieldLabel htmlFor="compose-subject">{t("compose.subject")}</FieldLabel>
+              <FieldLabel htmlFor="compose-subject">
+                {t("compose.subject")}
+              </FieldLabel>
               <Input id="compose-subject" {...form.register("subject")} />
             </Field>
 
             <Field data-invalid={!!form.formState.errors.html || undefined}>
-              <FieldLabel htmlFor="compose-editor">{t("compose.body")}</FieldLabel>
+              <FieldLabel htmlFor="compose-editor">
+                {t("compose.body")}
+              </FieldLabel>
               <Controller
                 control={form.control}
                 name="html"
@@ -562,8 +592,11 @@ export function ComposeView() {
           </FieldGroup>
 
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" disabled={submitting || savingDraft || deletingDraft}>
-              <PaperPlaneTiltIcon data-icon="inline-start" />
+            <Button
+              type="submit"
+              disabled={submitting || savingDraft || deletingDraft}
+            >
+              <Icon icon={SentIcon} data-icon="inline-start" />
               {submitting ? t("compose.sending") : t("compose.send")}
             </Button>
             <Button
@@ -572,7 +605,7 @@ export function ComposeView() {
               disabled={submitting || savingDraft || deletingDraft}
               onClick={() => void saveDraft()}
             >
-              <FloppyDiskIcon data-icon="inline-start" />
+              <Icon icon={FloppyDiskIcon} data-icon="inline-start" />
               {savingDraft ? t("compose.savingDraft") : t("compose.saveDraft")}
             </Button>
             {draftId ? (
@@ -582,15 +615,13 @@ export function ComposeView() {
                 disabled={submitting || savingDraft || deletingDraft}
                 onClick={() => void deleteCurrentDraft()}
               >
-                <TrashIcon data-icon="inline-start" />
-                {deletingDraft ? t("compose.deletingDraft") : t("compose.deleteDraft")}
+                <Icon icon={Delete02Icon} data-icon="inline-start" />
+                {deletingDraft
+                  ? t("compose.deletingDraft")
+                  : t("compose.deleteDraft")}
               </Button>
             ) : null}
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => navigate(-1)}
-            >
+            <Button type="button" variant="ghost" onClick={() => navigate(-1)}>
               {t("app.cancel")}
             </Button>
           </div>

@@ -3,9 +3,11 @@
 import * as React from "react"
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
 
-import { cn } from "@/lib/utils"
+import { Cancel01Icon } from "@hugeicons/core-free-icons"
+
+import { Icon } from "@/components/icon"
 import { Button } from "@/components/ui/button"
-import { XIcon } from "@phosphor-icons/react"
+import { cn } from "@/lib/utils"
 
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />
@@ -70,8 +72,7 @@ function DialogContent({
               />
             }
           >
-            <XIcon
-            />
+            <Icon icon={Cancel01Icon} />
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>
         )}

@@ -2,14 +2,16 @@ import Link from "@tiptap/extension-link"
 import { EditorContent, useEditor } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import {
+  LeftToRightListBulletIcon,
+  LeftToRightListNumberIcon,
   LinkIcon,
-  ListBulletsIcon,
-  ListNumbersIcon,
-  TextBIcon,
+  TextBoldIcon,
   TextItalicIcon,
-} from "@phosphor-icons/react"
+} from "@hugeicons/core-free-icons"
+
 import { useTranslation } from "react-i18next"
 
+import { Icon } from "@/components/icon"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -70,14 +72,19 @@ export function RichTextEditor({
       editor.chain().focus().extendMarkRange("link").unsetLink().run()
       return
     }
-    editor.chain().focus().extendMarkRange("link").setLink({ href: trimmed }).run()
+    editor
+      .chain()
+      .focus()
+      .extendMarkRange("link")
+      .setLink({ href: trimmed })
+      .run()
   }
 
   return (
     <div
       className={cn(
         "rounded-lg border border-input bg-transparent shadow-xs transition-[color,box-shadow]",
-        invalid && "border-destructive ring-destructive/20 ring-[3px]",
+        invalid && "border-destructive ring-[3px] ring-destructive/20",
         className
       )}
     >
@@ -90,7 +97,7 @@ export function RichTextEditor({
           aria-pressed={editor.isActive("bold")}
           onClick={() => editor.chain().focus().toggleBold().run()}
         >
-          <TextBIcon />
+          <Icon icon={TextBoldIcon} />
         </Button>
         <Button
           type="button"
@@ -100,7 +107,7 @@ export function RichTextEditor({
           aria-pressed={editor.isActive("italic")}
           onClick={() => editor.chain().focus().toggleItalic().run()}
         >
-          <TextItalicIcon />
+          <Icon icon={TextItalicIcon} />
         </Button>
         <Button
           type="button"
@@ -110,7 +117,7 @@ export function RichTextEditor({
           aria-pressed={editor.isActive("bulletList")}
           onClick={() => editor.chain().focus().toggleBulletList().run()}
         >
-          <ListBulletsIcon />
+          <Icon icon={LeftToRightListBulletIcon} />
         </Button>
         <Button
           type="button"
@@ -120,7 +127,7 @@ export function RichTextEditor({
           aria-pressed={editor.isActive("orderedList")}
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
         >
-          <ListNumbersIcon />
+          <Icon icon={LeftToRightListNumberIcon} />
         </Button>
         <Button
           type="button"
@@ -130,7 +137,7 @@ export function RichTextEditor({
           aria-pressed={editor.isActive("link")}
           onClick={setLink}
         >
-          <LinkIcon />
+          <Icon icon={LinkIcon} />
         </Button>
       </div>
       <EditorContent editor={editor} />

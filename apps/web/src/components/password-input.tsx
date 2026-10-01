@@ -1,6 +1,8 @@
-import { EyeIcon, EyeSlashIcon } from "@phosphor-icons/react"
+import { EyeIcon, ViewOffIcon } from "@hugeicons/core-free-icons"
 import * as React from "react"
 import { useTranslation } from "react-i18next"
+
+import { Icon } from "@/components/icon"
 
 import {
   InputGroup,
@@ -26,7 +28,7 @@ function PasswordInput({
           aria-pressed={visible}
           onClick={() => setVisible((v) => !v)}
         >
-          {visible ? <EyeSlashIcon /> : <EyeIcon />}
+          {visible ? <Icon icon={ViewOffIcon} /> : <Icon icon={EyeIcon} />}
         </InputGroupButton>
       </InputGroupAddon>
     </InputGroup>

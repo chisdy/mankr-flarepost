@@ -1,17 +1,17 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
   AtIcon,
-  CheckCircleIcon,
+  CheckmarkCircle02Icon,
   CircleIcon,
-  ToggleLeftIcon,
-  ToggleRightIcon,
-} from "@phosphor-icons/react"
+} from "@hugeicons/core-free-icons"
+
 import { useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { z } from "zod"
 
+import { Icon } from "@/components/icon"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
+import { Switch } from "@/components/ui/switch"
 import { api, isApiError } from "@/lib/api"
 import type { Alias } from "@/lib/types"
 
@@ -129,7 +130,7 @@ export function AliasesSettings({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <AtIcon className="size-4 text-primary" />
+            <Icon icon={AtIcon} className="size-4 text-primary" />
             {t("aliases.title")}
             <Badge variant="secondary">
               {aliases.length}/{MAX_ALIASES}
@@ -177,7 +178,9 @@ export function AliasesSettings({
               {t("aliases.loading")}
             </p>
           ) : aliases.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t("aliases.empty")}</p>
+            <p className="text-sm text-muted-foreground">
+              {t("aliases.empty")}
+            </p>
           ) : (
             <ul className="flex flex-col gap-2">
               {aliases.map((alias) => {
@@ -211,38 +214,27 @@ export function AliasesSettings({
                         }
                       >
                         {alias.isDefault ? (
-                          <CheckCircleIcon
+                          <Icon
+                            icon={CheckmarkCircle02Icon}
                             data-icon="inline-start"
-                            weight="fill"
                           />
                         ) : (
-                          <CircleIcon data-icon="inline-start" />
+                          <Icon icon={CircleIcon} data-icon="inline-start" />
                         )}
                         {t("aliases.default")}
                       </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
+                      <Switch
+                        checked={alias.enabled}
                         disabled={busy}
-                        onClick={() =>
-                          void patchAlias(alias.id, {
-                            enabled: !alias.enabled,
-                          })
+                        aria-label={
+                          alias.enabled
+                            ? t("aliases.disable")
+                            : t("aliases.enable")
                         }
-                      >
-                        {alias.enabled ? (
-                          <ToggleRightIcon
-                            data-icon="inline-start"
-                            weight="fill"
-                          />
-                        ) : (
-                          <ToggleLeftIcon data-icon="inline-start" />
-                        )}
-                        {alias.enabled
-                          ? t("aliases.disable")
-                          : t("aliases.enable")}
-                      </Button>
+                        onCheckedChange={(enabled) => {
+                          void patchAlias(alias.id, { enabled })
+                        }}
+                      />
                     </div>
                   </li>
                 )

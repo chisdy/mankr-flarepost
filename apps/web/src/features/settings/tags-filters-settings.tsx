@@ -1,8 +1,16 @@
-import { FunnelIcon, PlusIcon, TagIcon, TrashIcon, PencilSimpleIcon } from "@phosphor-icons/react"
+import {
+  Delete02Icon,
+  FilterIcon,
+  PencilEdit01Icon,
+  PlusSignIcon,
+  Tag01Icon,
+} from "@hugeicons/core-free-icons"
+
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
+import { Icon } from "@/components/icon"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -43,7 +51,14 @@ import {
 import { api, isApiError } from "@/lib/api"
 import type { Alias, FilterCondition, FilterRule, Tag } from "@/lib/types"
 
-const TAG_COLORS = ["#64748b", "#0ea5e9", "#22c55e", "#f59e0b", "#ef4444", "#a855f7"]
+const TAG_COLORS = [
+  "#64748b",
+  "#0ea5e9",
+  "#22c55e",
+  "#f59e0b",
+  "#ef4444",
+  "#a855f7",
+]
 
 type ConditionDraft = {
   key: string
@@ -59,7 +74,10 @@ function newConditionDraft(
 }
 
 function isSafeHexColor(value: string | null | undefined): value is string {
-  return typeof value === "string" && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value)
+  return (
+    typeof value === "string" &&
+    /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value)
+  )
 }
 
 export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
@@ -101,7 +119,9 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
     reload()
       .catch((err) => {
         if (!cancelled) {
-          toast.error(isApiError(err) ? err.message : t("settings.tagsLoadFailed"))
+          toast.error(
+            isApiError(err) ? err.message : t("settings.tagsLoadFailed")
+          )
         }
       })
       .finally(() => {
@@ -196,7 +216,12 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
       toast.error(t("settings.filterInvalid"))
       return
     }
-    if (!actionStar && !actionTrash && !actionSpam && actionTagIds.length === 0) {
+    if (
+      !actionStar &&
+      !actionTrash &&
+      !actionSpam &&
+      actionTagIds.length === 0
+    ) {
       toast.error(t("settings.filterNeedAction"))
       return
     }
@@ -234,7 +259,9 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
       resetFilterForm()
       await reload()
     } catch (err) {
-      toast.error(isApiError(err) ? err.message : t("settings.filterSaveFailed"))
+      toast.error(
+        isApiError(err) ? err.message : t("settings.filterSaveFailed")
+      )
     } finally {
       setBusy(false)
     }
@@ -256,7 +283,9 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
       })
       await reload()
     } catch (err) {
-      toast.error(isApiError(err) ? err.message : t("settings.filterSaveFailed"))
+      toast.error(
+        isApiError(err) ? err.message : t("settings.filterSaveFailed")
+      )
     } finally {
       setBusy(false)
     }
@@ -271,7 +300,9 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
       if (editingId === id) resetFilterForm()
       await reload()
     } catch (err) {
-      toast.error(isApiError(err) ? err.message : t("settings.filterDeleteFailed"))
+      toast.error(
+        isApiError(err) ? err.message : t("settings.filterDeleteFailed")
+      )
     } finally {
       setBusy(false)
     }
@@ -290,7 +321,9 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
   ]
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground py-4">{t("app.loading")}</p>
+    return (
+      <p className="py-4 text-sm text-muted-foreground">{t("app.loading")}</p>
+    )
   }
 
   return (
@@ -299,7 +332,7 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <TagIcon className="size-4 text-primary" />
+            <Icon icon={Tag01Icon} className="size-4 text-primary" />
             {t("settings.tagsSection")}
           </CardTitle>
           <CardDescription>{t("settings.tagsHint")}</CardDescription>
@@ -349,14 +382,16 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
               disabled={busy || !tagName.trim()}
               onClick={() => void createTag()}
             >
-              <PlusIcon data-icon="inline-start" />
+              <Icon icon={PlusSignIcon} data-icon="inline-start" />
               {t("settings.addTag")}
             </Button>
           </div>
 
           {/* 标签列表 */}
           {tags.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t("settings.noTags")}</p>
+            <p className="text-sm text-muted-foreground">
+              {t("settings.noTags")}
+            </p>
           ) : (
             <div className="flex flex-wrap gap-2 pt-1">
               {tags.map((tag) => (
@@ -365,22 +400,24 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
                   className="group inline-flex items-center gap-2 rounded-xl border border-border/80 bg-card px-3 py-1.5 text-sm shadow-2xs transition-colors hover:border-border"
                 >
                   <span
-                    className="size-2.5 rounded-full shrink-0"
+                    className="size-2.5 shrink-0 rounded-full"
                     style={{
                       backgroundColor: isSafeHexColor(tag.color)
                         ? tag.color
                         : "#94a3b8",
                     }}
                   />
-                  <span className="font-medium text-foreground">{tag.name}</span>
+                  <span className="font-medium text-foreground">
+                    {tag.name}
+                  </span>
                   <button
                     type="button"
                     disabled={busy}
                     onClick={() => void removeTag(tag.id)}
-                    className="ml-1 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
+                    className="ml-1 text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
                     title={t("settings.delete")}
                   >
-                    <TrashIcon className="size-3.5" />
+                    <Icon icon={Delete02Icon} className="size-3.5" />
                   </button>
                 </div>
               ))}
@@ -393,13 +430,13 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <FunnelIcon className="size-4 text-primary" />
+            <Icon icon={FilterIcon} className="size-4 text-primary" />
             {t("settings.filtersSection")}
           </CardTitle>
           <CardDescription>{t("settings.filtersHint")}</CardDescription>
           <CardAction>
             <Button type="button" onClick={openCreateFilter}>
-              <PlusIcon data-icon="inline-start" />
+              <Icon icon={PlusSignIcon} data-icon="inline-start" />
               {t("settings.createFilter")}
             </Button>
           </CardAction>
@@ -408,7 +445,9 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
         <CardContent>
           {filters.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-8 text-center">
-              <p className="text-sm text-muted-foreground">{t("settings.noFilters")}</p>
+              <p className="text-sm text-muted-foreground">
+                {t("settings.noFilters")}
+              </p>
               <Button
                 type="button"
                 variant="outline"
@@ -416,7 +455,7 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
                 className="mt-3"
                 onClick={openCreateFilter}
               >
-                <PlusIcon data-icon="inline-start" />
+                <Icon icon={PlusSignIcon} data-icon="inline-start" />
                 {t("settings.createFilter")}
               </Button>
             </div>
@@ -429,10 +468,13 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
                 >
                   <div className="min-w-0 space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm text-foreground">
+                      <span className="text-sm font-medium text-foreground">
                         {filter.name}
                       </span>
-                      <Badge variant="outline" className="font-mono text-[10px]">
+                      <Badge
+                        variant="outline"
+                        className="font-mono text-[10px]"
+                      >
                         P{filter.priority}
                       </Badge>
                       {!filter.enabled ? (
@@ -442,18 +484,21 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
                       ) : null}
                     </div>
 
-                    <p className="text-xs text-muted-foreground truncate">
-                      <span className="font-mono uppercase font-semibold text-[11px] text-foreground/70">
+                    <p className="truncate text-xs text-muted-foreground">
+                      <span className="font-mono text-[11px] font-semibold text-foreground/70 uppercase">
                         {filter.matchMode}
                       </span>{" "}
                       ·{" "}
                       {filter.conditions
-                        .map((c) => `${c.type.replace("_contains", "")}: ${c.value}`)
+                        .map(
+                          (c) =>
+                            `${c.type.replace("_contains", "")}: ${c.value}`
+                        )
                         .join(", ")}
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="flex shrink-0 items-center gap-1.5">
                     <Button
                       type="button"
                       size="sm"
@@ -472,7 +517,7 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
                       disabled={busy}
                       onClick={() => loadFilterIntoForm(filter)}
                     >
-                      <PencilSimpleIcon className="size-3.5" />
+                      <Icon icon={PencilEdit01Icon} className="size-3.5" />
                       {t("settings.edit")}
                     </Button>
                     <Button
@@ -483,7 +528,7 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
                       className="text-destructive hover:text-destructive"
                       onClick={() => void removeFilter(filter.id)}
                     >
-                      <TrashIcon className="size-3.5" />
+                      <Icon icon={Delete02Icon} className="size-3.5" />
                     </Button>
                   </div>
                 </li>
@@ -502,7 +547,9 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
                 ? t("settings.editFilterTitle")
                 : t("settings.createFilterTitle")}
             </DialogTitle>
-            <DialogDescription>{t("settings.createFilterHint")}</DialogDescription>
+            <DialogDescription>
+              {t("settings.createFilterHint")}
+            </DialogDescription>
           </DialogHeader>
 
           <FieldGroup className="py-2">
@@ -517,7 +564,9 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
 
             <div className="grid grid-cols-2 gap-3">
               <FieldSet>
-                <FieldLegend variant="label">{t("settings.matchMode")}</FieldLegend>
+                <FieldLegend variant="label">
+                  {t("settings.matchMode")}
+                </FieldLegend>
                 <RadioGroup
                   value={matchMode}
                   onValueChange={(v) => {
@@ -549,7 +598,9 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
                   value={priority}
                   onChange={(e) => setPriority(Number(e.target.value) || 0)}
                 />
-                <FieldDescription>{t("settings.priorityHint")}</FieldDescription>
+                <FieldDescription>
+                  {t("settings.priorityHint")}
+                </FieldDescription>
               </Field>
             </div>
 
@@ -557,10 +608,7 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
               <FieldLabel>{t("settings.conditions")}</FieldLabel>
               <div className="flex flex-col gap-2.5">
                 {conditions.map((cond) => (
-                  <div
-                    key={cond.key}
-                    className="flex items-center gap-2"
-                  >
+                  <div key={cond.key} className="flex items-center gap-2">
                     <Select
                       items={conditionItems}
                       value={cond.type}
@@ -598,7 +646,9 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
                         }
                       >
                         <SelectTrigger className="flex-1">
-                          <SelectValue placeholder={t("settings.selectAlias")} />
+                          <SelectValue
+                            placeholder={t("settings.selectAlias")}
+                          />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectGroup>
@@ -632,7 +682,7 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
                         )
                       }
                     >
-                      <TrashIcon className="size-3.5" />
+                      <Icon icon={Delete02Icon} className="size-3.5" />
                     </Button>
                   </div>
                 ))}
@@ -641,12 +691,12 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="w-fit mt-1"
+                  className="mt-1 w-fit"
                   onClick={() =>
                     setConditions((prev) => [...prev, newConditionDraft()])
                   }
                 >
-                  <PlusIcon data-icon="inline-start" />
+                  <Icon icon={PlusSignIcon} data-icon="inline-start" />
                   {t("settings.addCondition")}
                 </Button>
               </div>
@@ -708,7 +758,7 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
 
                 {tags.length > 0 ? (
                   <div className="flex flex-wrap gap-1.5 pt-1">
-                    <span className="text-xs text-muted-foreground w-full">
+                    <span className="w-full text-xs text-muted-foreground">
                       {t("nav.tags")}：
                     </span>
                     {tags.map((tag) => {

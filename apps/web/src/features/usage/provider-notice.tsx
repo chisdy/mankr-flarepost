@@ -1,6 +1,8 @@
-import { WarningCircleIcon } from "@phosphor-icons/react"
+import { AlertCircleIcon } from "@hugeicons/core-free-icons"
+
 import { useTranslation } from "react-i18next"
 
+import { Icon } from "@/components/icon"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import type { ProviderStatus } from "@/lib/types"
 
@@ -19,7 +21,7 @@ export function ProviderNotice({
   const isError = status === "error"
   return (
     <Alert variant={isError ? "destructive" : "default"}>
-      <WarningCircleIcon />
+      <Icon icon={AlertCircleIcon} />
       <AlertTitle>
         {isError ? t("usage.errorTitle") : t("usage.notConfiguredTitle")}
       </AlertTitle>

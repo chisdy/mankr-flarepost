@@ -1,12 +1,13 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
   AtIcon,
-  FunnelIcon,
-  KeyIcon,
-  PaletteIcon,
-  ShieldCheckIcon,
-  UserCircleIcon,
-} from "@phosphor-icons/react"
+  FilterIcon,
+  Key01Icon,
+  PaintBoardIcon,
+  SecurityCheckIcon,
+  UserCircle02Icon,
+} from "@hugeicons/core-free-icons"
+
 import { useEffect, useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
@@ -15,6 +16,7 @@ import { toast } from "sonner"
 import { z } from "zod"
 
 import { useAuth } from "@/components/auth-gate"
+import { Icon } from "@/components/icon"
 import { LanguageSwitcher } from "@/components/language-switcher"
 import { PageHeader } from "@/components/page-header"
 import { ThemeSwitcher } from "@/components/theme-switcher"
@@ -146,12 +148,12 @@ export function SettingsView() {
     {
       id: "general" as const,
       label: t("settings.tabGeneral"),
-      icon: UserCircleIcon,
+      icon: UserCircle02Icon,
     },
     {
       id: "security" as const,
       label: t("settings.tabSecurity"),
-      icon: ShieldCheckIcon,
+      icon: SecurityCheckIcon,
     },
     {
       id: "mail" as const,
@@ -161,12 +163,12 @@ export function SettingsView() {
     {
       id: "tags" as const,
       label: t("settings.tabTagsFilters"),
-      icon: FunnelIcon,
+      icon: FilterIcon,
     },
     {
       id: "apikeys" as const,
       label: t("settings.tabApiKeys"),
-      icon: KeyIcon,
+      icon: Key01Icon,
     },
   ]
 
@@ -178,7 +180,6 @@ export function SettingsView() {
         <aside className="shrink-0 px-4 py-2 md:w-56 md:px-3 md:py-4">
           <nav className="flex flex-row gap-1 overflow-x-auto md:flex-col md:overflow-x-visible">
             {tabs.map((tab) => {
-              const Icon = tab.icon
               const isActive = activeTab === tab.id
               return (
                 <button
@@ -192,7 +193,7 @@ export function SettingsView() {
                       : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
                   )}
                 >
-                  <Icon className="size-4 shrink-0" />
+                  <Icon icon={tab.icon} className="size-4 shrink-0" />
                   <span>{tab.label}</span>
                 </button>
               )
@@ -207,14 +208,20 @@ export function SettingsView() {
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <UserCircleIcon className="size-4 text-primary" />
+                      <Icon
+                        icon={UserCircle02Icon}
+                        className="size-4 text-primary"
+                      />
                       {t("settings.profile")}
                     </CardTitle>
                     <CardDescription>
                       {t("settings.profileHint")}
                     </CardDescription>
                   </CardHeader>
-                  <form className="contents" onSubmit={form.handleSubmit(onSubmit)}>
+                  <form
+                    className="contents"
+                    onSubmit={form.handleSubmit(onSubmit)}
+                  >
                     <CardContent>
                       <FieldGroup>
                         <Field>
@@ -263,7 +270,10 @@ export function SettingsView() {
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <PaletteIcon className="size-4 text-primary" />
+                      <Icon
+                        icon={PaintBoardIcon}
+                        className="size-4 text-primary"
+                      />
                       {t("settings.appearance")}
                     </CardTitle>
                     <CardDescription>
@@ -296,7 +306,10 @@ export function SettingsView() {
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <ShieldCheckIcon className="size-4 text-primary" />
+                      <Icon
+                        icon={SecurityCheckIcon}
+                        className="size-4 text-primary"
+                      />
                       {t("settings.security")}
                     </CardTitle>
                     <CardDescription>
@@ -313,7 +326,7 @@ export function SettingsView() {
                       className="w-fit"
                       onClick={() => setPasswordOpen(true)}
                     >
-                      <KeyIcon data-icon="inline-start" />
+                      <Icon icon={Key01Icon} data-icon="inline-start" />
                       {t("nav.changePassword")}
                     </Button>
                   </CardContent>

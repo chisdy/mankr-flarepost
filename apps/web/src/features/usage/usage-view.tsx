@@ -1,8 +1,10 @@
-import { ArrowClockwiseIcon } from "@phosphor-icons/react"
+import { RefreshIcon } from "@hugeicons/core-free-icons"
+
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
+import { Icon } from "@/components/icon"
 import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -62,7 +64,7 @@ export function UsageView() {
             disabled={loading || refreshing}
             onClick={() => void refresh()}
           >
-            <ArrowClockwiseIcon data-icon="inline-start" />
+            <Icon icon={RefreshIcon} data-icon="inline-start" />
             {refreshing ? t("usage.refreshing") : t("usage.refresh")}
           </Button>
         }

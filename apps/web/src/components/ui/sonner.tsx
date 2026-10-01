@@ -1,7 +1,14 @@
 import type { CSSProperties } from "react"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
-import { CheckCircleIcon, InfoIcon, WarningIcon, XCircleIcon, SpinnerIcon } from "@phosphor-icons/react"
+import {
+  Alert02Icon,
+  CheckmarkCircle02Icon,
+  InformationCircleIcon,
+  Loading03Icon,
+  MultiplicationSignCircleIcon,
+} from "@hugeicons/core-free-icons"
 
+import { Icon } from "@/components/icon"
 import { useTheme } from "@/components/theme-provider"
 
 const Toaster = ({ ...props }: ToasterProps) => {
@@ -12,21 +19,11 @@ const Toaster = ({ ...props }: ToasterProps) => {
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
       icons={{
-        success: (
-          <CheckCircleIcon className="size-4" />
-        ),
-        info: (
-          <InfoIcon className="size-4" />
-        ),
-        warning: (
-          <WarningIcon className="size-4" />
-        ),
-        error: (
-          <XCircleIcon className="size-4" />
-        ),
-        loading: (
-          <SpinnerIcon className="size-4 animate-spin" />
-        ),
+        success: <Icon icon={CheckmarkCircle02Icon} className="size-4" />,
+        info: <Icon icon={InformationCircleIcon} className="size-4" />,
+        warning: <Icon icon={Alert02Icon} className="size-4" />,
+        error: <Icon icon={MultiplicationSignCircleIcon} className="size-4" />,
+        loading: <Icon icon={Loading03Icon} className="size-4 animate-spin" />,
       }}
       style={
         {

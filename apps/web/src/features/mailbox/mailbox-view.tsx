@@ -1,14 +1,14 @@
-import { MagnifyingGlassIcon, StarIcon, TrashIcon } from "@phosphor-icons/react"
+import {
+  Delete02Icon,
+  Search01Icon,
+  StarIcon,
+} from "@hugeicons/core-free-icons"
 import { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import {
-  Link,
-  useLocation,
-  useParams,
-  useSearchParams,
-} from "react-router"
+import { Link, useLocation, useParams, useSearchParams } from "react-router"
 import { toast } from "sonner"
 
+import { Icon } from "@/components/icon"
 import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -143,9 +143,7 @@ export function MailboxView() {
         title: mode.query
           ? t("mailbox.searchTitle", { query: mode.query })
           : t("nav.search"),
-        empty: mode.query
-          ? t("mailbox.searchEmpty")
-          : t("mailbox.searchHint"),
+        empty: mode.query ? t("mailbox.searchEmpty") : t("mailbox.searchHint"),
       }
     }
     if (mode.kind === "starred") {
@@ -153,7 +151,9 @@ export function MailboxView() {
     }
     if (mode.kind === "tag") {
       return {
-        title: tagName ? t("mailbox.tagTitle", { name: tagName }) : t("nav.tags"),
+        title: tagName
+          ? t("mailbox.tagTitle", { name: tagName })
+          : t("nav.tags"),
         empty: t("mailbox.tagEmpty"),
       }
     }
@@ -358,7 +358,7 @@ export function MailboxView() {
               disabled={emptying || items.length === 0}
               onClick={() => void emptyFolder(folder)}
             >
-              <TrashIcon data-icon="inline-start" />
+              <Icon icon={Delete02Icon} data-icon="inline-start" />
               {emptying
                 ? t("mailbox.emptying")
                 : folder === "spam"
@@ -382,7 +382,7 @@ export function MailboxView() {
             autoFocus
           />
           <Button type="submit" variant="outline">
-            <MagnifyingGlassIcon data-icon="inline-start" />
+            <Icon icon={Search01Icon} data-icon="inline-start" />
             {t("mailbox.searchAction")}
           </Button>
         </form>
@@ -437,8 +437,9 @@ export function MailboxView() {
                           }
                           onClick={(e) => void toggleStar(e, item)}
                         >
-                          <StarIcon
-                            weight={item.isStarred ? "fill" : "regular"}
+                          <Icon
+                            icon={StarIcon}
+                            strokeWidth={item.isStarred ? 2.25 : 1.5}
                             className={
                               item.isStarred ? "text-amber-500" : undefined
                             }
@@ -449,7 +450,9 @@ export function MailboxView() {
                         to={href}
                         className={cn(
                           "flex min-w-0 flex-1 flex-col gap-1 py-3 transition-colors hover:bg-muted/50 sm:flex-row sm:items-baseline sm:gap-3 sm:px-2",
-                          !item.isRead && listFolder !== "draft" && "bg-muted/30"
+                          !item.isRead &&
+                            listFolder !== "draft" &&
+                            "bg-muted/30"
                         )}
                       >
                         <div className="flex min-w-0 items-baseline justify-between gap-3 sm:contents">
@@ -488,7 +491,9 @@ export function MailboxView() {
                         </span>
                         {mode.kind === "search" ? (
                           <span className="hidden text-xs text-muted-foreground sm:inline sm:w-16 sm:shrink-0">
-                            {t(`nav.${item.folder === "draft" ? "drafts" : item.folder}`)}
+                            {t(
+                              `nav.${item.folder === "draft" ? "drafts" : item.folder}`
+                            )}
                           </span>
                         ) : null}
                       </Link>

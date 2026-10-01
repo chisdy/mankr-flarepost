@@ -164,26 +164,9 @@
 */
 .liquid-glass {
   --liquid-glass-highlight: rgb(255 255 255 / 0.22);
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
   box-shadow:
     inset 0 1px 0 var(--liquid-glass-highlight),
     inset 0 -4px 10px rgb(0 0 0 / 0.1);
-}
-
-.liquid-glass::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  pointer-events: none;
-  background: linear-gradient(
-    158deg,
-    var(--liquid-glass-highlight),
-    transparent 28%
-  );
 }
 
 /* Optional frost — still no fill; add your own bg if needed */
@@ -224,4 +207,8 @@
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
+}
+
+[data-slot="switch-thumb"][data-checked] {
+  transform: translateX(calc(100% - 4px));
 }

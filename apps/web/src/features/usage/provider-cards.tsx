@@ -1,6 +1,8 @@
-import { CloudIcon, PaperPlaneTiltIcon } from "@phosphor-icons/react"
+import { CloudIcon, SentIcon } from "@hugeicons/core-free-icons"
+
 import { useTranslation } from "react-i18next"
 
+import { Icon } from "@/components/icon"
 import {
   Card,
   CardAction,
@@ -54,7 +56,7 @@ export function SendProviderCard({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <PaperPlaneTiltIcon className="size-4 text-primary" />
+          <Icon icon={SentIcon} className="size-4 text-primary" />
           {name || t("usage.sendTitle")}
         </CardTitle>
         <CardDescription>{t("usage.sendHint")}</CardDescription>
@@ -93,7 +95,7 @@ export function SendProviderCard({
                     ? t("usage.sendReportedAt", {
                         provider: name,
                         value: new Date(
-                          usage.reported.capturedAt,
+                          usage.reported.capturedAt
                         ).toLocaleString(),
                       })
                     : t("usage.sendNoReportYet", { provider: name })}
@@ -122,7 +124,7 @@ export function CloudflareCard({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <CloudIcon className="size-4 text-primary" />
+          <Icon icon={CloudIcon} className="size-4 text-primary" />
           {t("usage.cloudflareTitle")}
         </CardTitle>
         <CardDescription>{t("usage.cloudflareHint")}</CardDescription>

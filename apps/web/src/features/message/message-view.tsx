@@ -1,17 +1,19 @@
 import {
-  ArrowBendUpLeftIcon,
-  ArrowBendUpRightIcon,
-  ArrowCounterClockwiseIcon,
-  ArrowLeftIcon,
+  AlertDiamondIcon,
+  ArrowLeft01Icon,
+  ArrowTurnBackwardIcon,
+  ArrowTurnForwardIcon,
+  Delete02Icon,
   StarIcon,
-  TrashIcon,
-  WarningOctagonIcon,
-} from "@phosphor-icons/react"
+  UndoIcon,
+} from "@hugeicons/core-free-icons"
+
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Link, useNavigate, useParams } from "react-router"
 import { toast } from "sonner"
 
+import { Icon } from "@/components/icon"
 import { PageHeader } from "@/components/page-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -104,7 +106,9 @@ export function MessageView() {
       try {
         const [msg, tagsRes] = await Promise.all([
           api<MessageDetail>(`/api/messages/${id}`),
-          api<{ tags: Tag[] }>("/api/tags").catch(() => ({ tags: [] as Tag[] })),
+          api<{ tags: Tag[] }>("/api/tags").catch(() => ({
+            tags: [] as Tag[],
+          })),
         ])
         if (cancelled) return
         setMessage(msg)
@@ -254,7 +258,7 @@ export function MessageView() {
                 />
               }
             >
-              <ArrowLeftIcon />
+              <Icon icon={ArrowLeft01Icon} />
             </TooltipTrigger>
             <TooltipContent side="bottom">{t("app.back")}</TooltipContent>
           </Tooltip>
@@ -269,9 +273,11 @@ export function MessageView() {
                 disabled={acting}
                 onClick={() => void toggleStar()}
               >
-                <StarIcon
+                <Icon
+                  icon={StarIcon}
                   data-icon="inline-start"
-                  weight={message.isStarred ? "fill" : "regular"}
+                  strokeWidth={message.isStarred ? 2.25 : 1.5}
+                  className={message.isStarred ? "text-amber-500" : undefined}
                 />
                 {message.isStarred ? t("mailbox.unstar") : t("mailbox.star")}
               </Button>
@@ -285,7 +291,7 @@ export function MessageView() {
                   disabled={acting}
                   onClick={() => void restore()}
                 >
-                  <ArrowCounterClockwiseIcon data-icon="inline-start" />
+                  <Icon icon={UndoIcon} data-icon="inline-start" />
                   {t("message.restore")}
                 </Button>
                 {message.folder === "spam" ? (
@@ -296,7 +302,7 @@ export function MessageView() {
                     disabled={acting}
                     onClick={() => void trash()}
                   >
-                    <TrashIcon data-icon="inline-start" />
+                    <Icon icon={Delete02Icon} data-icon="inline-start" />
                     {t("message.trash")}
                   </Button>
                 ) : null}
@@ -319,7 +325,7 @@ export function MessageView() {
                   disabled={acting}
                   onClick={() => void markSpam()}
                 >
-                  <WarningOctagonIcon data-icon="inline-start" />
+                  <Icon icon={AlertDiamondIcon} data-icon="inline-start" />
                   {t("message.markSpam")}
                 </Button>
                 <Button
@@ -329,7 +335,7 @@ export function MessageView() {
                   disabled={acting}
                   onClick={() => void trash()}
                 >
-                  <TrashIcon data-icon="inline-start" />
+                  <Icon icon={Delete02Icon} data-icon="inline-start" />
                   {t("message.trash")}
                 </Button>
               </>
@@ -371,7 +377,8 @@ export function MessageView() {
                   key={tag.id}
                   variant="secondary"
                   style={
-                    tag.color && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(tag.color)
+                    tag.color &&
+                    /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(tag.color)
                       ? { backgroundColor: tag.color, color: "#fff" }
                       : undefined
                   }
@@ -395,7 +402,7 @@ export function MessageView() {
                   </PopoverTrigger>
                   <PopoverContent
                     align="start"
-                    className="w-auto min-w-48 max-w-xs gap-2 p-3"
+                    className="w-auto max-w-xs min-w-48 gap-2 p-3"
                   >
                     {allTags.length === 0 ? (
                       <p className="text-sm text-muted-foreground">
@@ -411,7 +418,9 @@ export function MessageView() {
                     ) : (
                       <div className="flex flex-wrap gap-2">
                         {allTags.map((tag) => {
-                          const active = message.tags.some((x) => x.id === tag.id)
+                          const active = message.tags.some(
+                            (x) => x.id === tag.id
+                          )
                           return (
                             <Button
                               key={tag.id}
@@ -450,7 +459,7 @@ export function MessageView() {
               dangerouslySetInnerHTML={{ __html: html }}
             />
           ) : (
-            <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">
+            <pre className="font-sans text-sm leading-relaxed whitespace-pre-wrap">
               {message.textBody || t("app.emptyBody")}
             </pre>
           )}
@@ -458,7 +467,7 @@ export function MessageView() {
       </ScrollArea>
 
       {showReplyForward ? (
-        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-20 flex justify-start px-4 pb-4 md:left-56 sm:px-6">
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-20 flex justify-start px-4 pb-4 sm:px-6 md:left-56">
           <div className="pointer-events-auto flex items-center gap-1.5 rounded-2xl border border-border bg-background/95 p-1.5 shadow-lg backdrop-blur-sm">
             {message.direction === "inbound" ? (
               <Button
@@ -467,7 +476,7 @@ export function MessageView() {
                 render={<Link to={`/compose?reply=${message.id}`} />}
                 nativeButton={false}
               >
-                <ArrowBendUpLeftIcon data-icon="inline-start" />
+                <Icon icon={ArrowTurnBackwardIcon} data-icon="inline-start" />
                 {t("message.reply")}
               </Button>
             ) : null}
@@ -478,7 +487,7 @@ export function MessageView() {
               render={<Link to={`/compose?forward=${message.id}`} />}
               nativeButton={false}
             >
-              <ArrowBendUpRightIcon data-icon="inline-start" />
+              <Icon icon={ArrowTurnForwardIcon} data-icon="inline-start" />
               {t("message.forward")}
             </Button>
           </div>

@@ -1,8 +1,14 @@
-import { KeyIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react"
+import {
+  Delete02Icon,
+  Key01Icon,
+  PlusSignIcon,
+} from "@hugeicons/core-free-icons"
+
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
+import { Icon } from "@/components/icon"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -170,7 +176,7 @@ export function ApiKeysSettings({ aliases }: { aliases: Alias[] }) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <KeyIcon className="size-4 text-primary" />
+            <Icon icon={Key01Icon} className="size-4 text-primary" />
             {t("apiKeys.title")}
           </CardTitle>
           <CardDescription>
@@ -182,7 +188,7 @@ export function ApiKeysSettings({ aliases }: { aliases: Alias[] }) {
               disabled={busy || enabledAliases.length === 0}
               onClick={openCreate}
             >
-              <PlusIcon data-icon="inline-start" />
+              <Icon icon={PlusSignIcon} data-icon="inline-start" />
               {t("apiKeys.create")}
             </Button>
           </CardAction>
@@ -190,10 +196,14 @@ export function ApiKeysSettings({ aliases }: { aliases: Alias[] }) {
 
         <CardContent>
           {loading ? (
-            <p className="text-sm text-muted-foreground py-4">{t("app.loading")}</p>
+            <p className="py-4 text-sm text-muted-foreground">
+              {t("app.loading")}
+            </p>
           ) : keys.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-8 text-center">
-              <p className="text-sm text-muted-foreground">{t("apiKeys.empty")}</p>
+              <p className="text-sm text-muted-foreground">
+                {t("apiKeys.empty")}
+              </p>
               {enabledAliases.length === 0 ? (
                 <p className="mt-2 text-xs text-muted-foreground">
                   {t("apiKeys.needAlias")}
@@ -206,7 +216,7 @@ export function ApiKeysSettings({ aliases }: { aliases: Alias[] }) {
                   className="mt-3"
                   onClick={openCreate}
                 >
-                  <PlusIcon data-icon="inline-start" />
+                  <Icon icon={PlusSignIcon} data-icon="inline-start" />
                   {t("apiKeys.create")}
                 </Button>
               )}
@@ -220,7 +230,7 @@ export function ApiKeysSettings({ aliases }: { aliases: Alias[] }) {
                 >
                   <div className="min-w-0 space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm text-foreground">
+                      <span className="text-sm font-medium text-foreground">
                         {key.name}
                       </span>
                       <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
@@ -236,7 +246,9 @@ export function ApiKeysSettings({ aliases }: { aliases: Alias[] }) {
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
                       <span>
                         {t("apiKeys.fromAlias", { address: key.aliasAddress })}
-                        {!key.aliasEnabled ? ` (${t("apiKeys.aliasDisabled")})` : ""}
+                        {!key.aliasEnabled
+                          ? ` (${t("apiKeys.aliasDisabled")})`
+                          : ""}
                       </span>
                       <span>·</span>
                       <span className="font-mono">
@@ -247,7 +259,7 @@ export function ApiKeysSettings({ aliases }: { aliases: Alias[] }) {
                       </span>
                     </div>
 
-                    <p className="text-[11px] font-mono text-muted-foreground/80">
+                    <p className="font-mono text-[11px] text-muted-foreground/80">
                       {t("apiKeys.usage", {
                         sent24h: key.usage.sent24h,
                         failed24h: key.usage.failed24h,
@@ -257,7 +269,7 @@ export function ApiKeysSettings({ aliases }: { aliases: Alias[] }) {
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex shrink-0 items-center gap-2">
                     <Button
                       type="button"
                       variant="outline"
@@ -265,7 +277,9 @@ export function ApiKeysSettings({ aliases }: { aliases: Alias[] }) {
                       disabled={busy}
                       onClick={() => void setEnabled(key, !key.enabled)}
                     >
-                      {key.enabled ? t("settings.disable") : t("settings.enable")}
+                      {key.enabled
+                        ? t("settings.disable")
+                        : t("settings.enable")}
                     </Button>
                     <Button
                       type="button"
@@ -275,7 +289,7 @@ export function ApiKeysSettings({ aliases }: { aliases: Alias[] }) {
                       className="text-destructive hover:text-destructive"
                       onClick={() => setDeleteTarget(key)}
                     >
-                      <TrashIcon className="size-3.5" />
+                      <Icon icon={Delete02Icon} className="size-3.5" />
                     </Button>
                   </div>
                 </li>
@@ -293,7 +307,9 @@ export function ApiKeysSettings({ aliases }: { aliases: Alias[] }) {
           </DialogHeader>
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="api-key-name">{t("apiKeys.name")}</FieldLabel>
+              <FieldLabel htmlFor="api-key-name">
+                {t("apiKeys.name")}
+              </FieldLabel>
               <Input
                 id="api-key-name"
                 value={name}
@@ -353,7 +369,9 @@ export function ApiKeysSettings({ aliases }: { aliases: Alias[] }) {
                 />
               </Field>
             </div>
-            <p className="text-xs text-muted-foreground">{t("apiKeys.softQuotaHint")}</p>
+            <p className="text-xs text-muted-foreground">
+              {t("apiKeys.softQuotaHint")}
+            </p>
           </FieldGroup>
           <DialogFooter>
             <Button
@@ -363,7 +381,11 @@ export function ApiKeysSettings({ aliases }: { aliases: Alias[] }) {
             >
               {t("app.cancel")}
             </Button>
-            <Button type="button" disabled={busy} onClick={() => void createKey()}>
+            <Button
+              type="button"
+              disabled={busy}
+              onClick={() => void createKey()}
+            >
               {busy ? t("auth.saving") : t("apiKeys.create")}
             </Button>
           </DialogFooter>
@@ -381,11 +403,15 @@ export function ApiKeysSettings({ aliases }: { aliases: Alias[] }) {
             <DialogTitle>{t("apiKeys.secretTitle")}</DialogTitle>
             <DialogDescription>{t("apiKeys.secretHint")}</DialogDescription>
           </DialogHeader>
-          <code className="block break-all rounded-md bg-muted px-3 py-2 font-mono text-xs">
+          <code className="block rounded-md bg-muted px-3 py-2 font-mono text-xs break-all">
             {revealedSecret}
           </code>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => void copySecret()}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void copySecret()}
+            >
               {t("apiKeys.copy")}
             </Button>
             <Button type="button" onClick={() => setRevealedSecret(null)}>

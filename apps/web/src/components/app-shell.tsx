@@ -1,26 +1,27 @@
 import {
-  EnvelopeIcon,
-  EnvelopeOpenIcon,
+  AlertDiamondIcon,
+  Delete02Icon,
   GaugeIcon,
-  GearIcon,
-  KeyIcon,
-  ListIcon,
-  MagnifyingGlassIcon,
-  NoteBlankIcon,
-  PaperPlaneTiltIcon,
-  PlusIcon,
-  SignOutIcon,
+  Key01Icon,
+  Logout01Icon,
+  Mail01Icon,
+  MailOpen01Icon,
+  Menu01Icon,
+  Note01Icon,
+  PlusSignIcon,
+  Search01Icon,
+  SentIcon,
+  Settings01Icon,
   StarIcon,
-  TrashIcon,
-  UserCircleIcon,
-  WarningOctagonIcon,
-} from "@phosphor-icons/react"
+  UserCircle02Icon,
+} from "@hugeicons/core-free-icons"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router"
 import { toast } from "sonner"
 
 import { useAuth } from "@/components/auth-gate"
+import { Icon } from "@/components/icon"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -31,6 +32,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import {
   Sheet,
@@ -48,7 +50,7 @@ const folders = [
   {
     to: "/inbox",
     labelKey: "nav.inbox",
-    icon: EnvelopeIcon,
+    icon: Mail01Icon,
     countKey: "inbox",
   },
   {
@@ -57,26 +59,31 @@ const folders = [
     icon: StarIcon,
     countKey: "starred",
   },
-  { to: "/search", labelKey: "nav.search", icon: MagnifyingGlassIcon },
+  { to: "/search", labelKey: "nav.search", icon: Search01Icon },
   {
     to: "/draft",
     labelKey: "nav.drafts",
-    icon: NoteBlankIcon,
+    icon: Note01Icon,
     countKey: "draft",
   },
   {
     to: "/sent",
     labelKey: "nav.sent",
-    icon: PaperPlaneTiltIcon,
+    icon: SentIcon,
     countKey: "sent",
   },
   {
     to: "/spam",
     labelKey: "nav.spam",
-    icon: WarningOctagonIcon,
+    icon: AlertDiamondIcon,
     countKey: "spam",
   },
-  { to: "/trash", labelKey: "nav.trash", icon: TrashIcon, countKey: "trash" },
+  {
+    to: "/trash",
+    labelKey: "nav.trash",
+    icon: Delete02Icon,
+    countKey: "trash",
+  },
 ] as const
 
 function navClassName(isActive: boolean) {
@@ -103,85 +110,92 @@ function SidebarNav({ onNavigate, tags, counts }: SidebarNavProps) {
         nativeButton={false}
         className="w-full"
       >
-        <PlusIcon data-icon="inline-start" />
+        <Icon icon={PlusSignIcon} data-icon="inline-start" />
         {t("nav.compose")}
       </Button>
 
-      <nav className="flex flex-col gap-1">
-        {folders.map(({ to, labelKey, icon: Icon, ...rest }) => {
-          const countKey = "countKey" in rest ? rest.countKey : undefined
-          const count = countKey && counts ? counts[countKey] : null
-          return (
-            <NavLink
-              key={to}
-              to={to}
-              onClick={onNavigate}
-              className={({ isActive }) => navClassName(isActive)}
-            >
-              <Icon className="shrink-0" />
-              <span className="min-w-0 flex-1 truncate">{t(labelKey)}</span>
-              {count != null && count > 0 ? (
-                <span className="shrink-0 text-[0.65rem] text-muted-foreground tabular-nums">
-                  {count}
-                </span>
-              ) : null}
-            </NavLink>
-          )
-        })}
-      </nav>
-
-      {tags.length > 0 ? (
-        <>
-          <Separator />
-          <p className="px-3 text-xs font-medium text-muted-foreground">
-            {t("nav.tags")}
-          </p>
+      <ScrollArea
+        className="min-h-0 flex-1 -mx-4"
+        scrollbarClassName="pointer-events-none !w-1.5 opacity-0 transition-opacity duration-150 group-hover/sidebar:pointer-events-auto group-hover/sidebar:opacity-100 data-scrolling:pointer-events-auto data-scrolling:opacity-100 data-scrolling:duration-0 !end-1"
+      >
+        <div className="flex flex-col gap-4 px-4">
           <nav className="flex flex-col gap-1">
-            {tags.map((tag) => {
-              const color =
-                tag.color &&
-                /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(tag.color)
-                  ? tag.color
-                  : undefined
+            {folders.map(({ to, labelKey, icon: folderIcon, ...rest }) => {
+              const countKey = "countKey" in rest ? rest.countKey : undefined
+              const count = countKey && counts ? counts[countKey] : null
               return (
                 <NavLink
-                  key={tag.id}
-                  to={`/tags/${tag.id}`}
+                  key={to}
+                  to={to}
                   onClick={onNavigate}
                   className={({ isActive }) => navClassName(isActive)}
                 >
-                  <span
-                    aria-hidden
-                    className="size-2.5 shrink-0 rounded-full bg-muted-foreground/50"
-                    style={color ? { backgroundColor: color } : undefined}
-                  />
-                  <span className="truncate">{tag.name}</span>
+                  <Icon icon={folderIcon} className="size-4 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate">{t(labelKey)}</span>
+                  {count != null && count > 0 ? (
+                    <span className="shrink-0 text-[0.65rem] text-muted-foreground tabular-nums">
+                      {count}
+                    </span>
+                  ) : null}
                 </NavLink>
               )
             })}
           </nav>
-        </>
-      ) : null}
 
-      <Separator />
+          {tags.length > 0 ? (
+            <>
+              <Separator />
+              <p className="px-3 text-xs font-medium text-muted-foreground">
+                {t("nav.tags")}
+              </p>
+              <nav className="flex flex-col gap-1">
+                {tags.map((tag) => {
+                  const color =
+                    tag.color &&
+                    /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(tag.color)
+                      ? tag.color
+                      : undefined
+                  return (
+                    <NavLink
+                      key={tag.id}
+                      to={`/tags/${tag.id}`}
+                      onClick={onNavigate}
+                      className={({ isActive }) => navClassName(isActive)}
+                    >
+                      <span
+                        aria-hidden
+                        className="size-2.5 shrink-0 rounded-full bg-muted-foreground/50"
+                        style={color ? { backgroundColor: color } : undefined}
+                      />
+                      <span className="truncate">{tag.name}</span>
+                    </NavLink>
+                  )
+                })}
+              </nav>
+            </>
+          ) : null}
 
-      <NavLink
-        to="/usage"
-        onClick={onNavigate}
-        className={({ isActive }) => navClassName(isActive)}
-      >
-        <GaugeIcon />
-        {t("nav.usage")}
-      </NavLink>
+          <Separator />
 
-      <NavLink
-        to="/settings"
-        onClick={onNavigate}
-        className={({ isActive }) => navClassName(isActive)}
-      >
-        <GearIcon />
-        {t("nav.settings")}
-      </NavLink>
+          <NavLink
+            to="/usage"
+            onClick={onNavigate}
+            className={({ isActive }) => navClassName(isActive)}
+          >
+            <Icon icon={GaugeIcon} className="size-4" />
+            {t("nav.usage")}
+          </NavLink>
+
+          <NavLink
+            to="/settings"
+            onClick={onNavigate}
+            className={({ isActive }) => navClassName(isActive)}
+          >
+            <Icon icon={Settings01Icon} className="size-4" />
+            {t("nav.settings")}
+          </NavLink>
+        </div>
+      </ScrollArea>
     </>
   )
 }
@@ -210,7 +224,7 @@ function AccountMenu({
       <DropdownMenuTrigger
         render={<Button variant="ghost" className="w-full justify-start" />}
       >
-        <UserCircleIcon data-icon="inline-start" />
+        <Icon icon={UserCircle02Icon} data-icon="inline-start" />
         <span className="truncate">{label}</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -224,11 +238,11 @@ function AccountMenu({
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={onSettings}>
-          <GearIcon />
+          <Icon icon={Settings01Icon} />
           {t("nav.settings")}
         </DropdownMenuItem>
         <DropdownMenuItem onClick={onChangePassword}>
-          <KeyIcon />
+          <Icon icon={Key01Icon} />
           {t("nav.changePassword")}
         </DropdownMenuItem>
         <DropdownMenuItem
@@ -236,7 +250,7 @@ function AccountMenu({
           disabled={loggingOut}
           onClick={onLogout}
         >
-          <SignOutIcon />
+          <Icon icon={Logout01Icon} />
           {loggingOut ? t("nav.signingOut") : t("nav.signOut")}
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -307,11 +321,11 @@ export function AppShell() {
 
   return (
     <div className="flex h-svh overflow-hidden bg-background text-foreground">
-      <aside className="hidden h-full w-56 shrink-0 flex-col gap-4 overflow-y-auto p-4 md:flex">
+      <aside className="group/sidebar hidden h-full min-h-0 w-56 shrink-0 flex-col gap-4 overflow-hidden py-4 pr-4 pl-6 md:flex">
         <div className="flex items-center gap-2 px-1">
-          <EnvelopeOpenIcon
+          <Icon
+            icon={MailOpen01Icon}
             className="size-5 shrink-0 text-primary"
-            weight="duotone"
           />
           <span className="truncate font-heading text-sm font-medium tracking-tight">
             {t("app.name")}
@@ -341,12 +355,12 @@ export function AppShell() {
             aria-label={t("nav.openMenu")}
             onClick={() => setMobileNavOpen(true)}
           >
-            <ListIcon />
+            <Icon icon={Menu01Icon} />
           </Button>
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            <EnvelopeOpenIcon
+            <Icon
+              icon={MailOpen01Icon}
               className="size-5 shrink-0 text-primary"
-              weight="duotone"
             />
             <span className="truncate font-heading text-sm font-medium tracking-tight">
               {t("app.name")}
@@ -360,7 +374,7 @@ export function AppShell() {
             render={<Link to="/compose" />}
             nativeButton={false}
           >
-            <PlusIcon />
+            <Icon icon={PlusSignIcon} />
           </Button>
         </header>
 
@@ -372,15 +386,12 @@ export function AppShell() {
       <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
         <SheetContent
           side="left"
-          className="w-[min(100%,18rem)] gap-4 bg-background p-4 text-foreground"
+          className="group/sidebar w-[min(100%,18rem)] gap-4 overflow-hidden bg-background p-4 text-foreground"
           showCloseButton={false}
         >
           <SheetHeader className="p-0">
             <SheetTitle className="flex items-center gap-2">
-              <EnvelopeOpenIcon
-                className="size-5 text-primary"
-                weight="duotone"
-              />
+              <Icon icon={MailOpen01Icon} className="size-5 text-primary" />
               {t("app.name")}
             </SheetTitle>
             <SheetDescription className="sr-only">
