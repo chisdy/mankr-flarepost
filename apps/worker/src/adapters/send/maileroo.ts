@@ -27,6 +27,9 @@ export function createMailerooSendAdapter(apiKey: string): SendAdapter {
       try {
         const res = await fetch('https://smtp.maileroo.com/api/v2/emails', {
           method: 'POST',
+          ...(input.trackOutcome
+            ? { signal: AbortSignal.timeout(30_000) }
+            : {}),
           headers: {
             Authorization: `Bearer ${key}`,
             'Content-Type': 'application/json',
@@ -38,7 +41,17 @@ export function createMailerooSendAdapter(apiKey: string): SendAdapter {
           return { error: 'invalid_address' }
         }
         if (!res.ok) {
-          return { error: 'provider_error' }
+          return {
+            error: 'provider_error',
+            ...(input.trackOutcome
+              ? {
+                  outcome:
+                    res.status < 500
+                      ? ('rejected' as const)
+                      : ('unknown' as const),
+                }
+              : {}),
+          }
         }
 
         const data = (await res.json().catch(() => ({}))) as {
@@ -48,7 +61,10 @@ export function createMailerooSendAdapter(apiKey: string): SendAdapter {
         const id = data.data?.reference_id ?? data.reference_id
         return { id }
       } catch {
-        return { error: 'provider_error' }
+        return {
+          error: 'provider_error',
+          ...(input.trackOutcome ? { outcome: 'unknown' as const } : {}),
+        }
       }
     },
   }

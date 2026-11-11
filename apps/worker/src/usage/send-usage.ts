@@ -83,7 +83,8 @@ export function recordSendStatements(
            ON CONFLICT(provider) DO UPDATE SET
              daily_used = excluded.daily_used,
              monthly_used = excluded.monthly_used,
-             captured_at = excluded.captured_at`,
+             captured_at = excluded.captured_at
+           WHERE excluded.captured_at >= provider_quota_reports.captured_at`,
         )
         .bind(input.provider, input.quota.dailyUsed, input.quota.monthlyUsed, now),
     )

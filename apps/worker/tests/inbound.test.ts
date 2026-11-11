@@ -4,7 +4,10 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it, vi } from 'vitest'
 import { parseInboundMime } from '../src/inbound/parse'
 import { handleInboundEmail } from '../src/inbound/handler'
+import { createAlias } from '../src/aliases/service'
 import type { Env } from '../src/env'
+import { getMessage } from '../src/messages/service'
+import { sqliteD1 } from './helpers/sqlite-d1'
 
 const fixturePath = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'sample.eml')
 const sampleEml = readFileSync(fixturePath)
@@ -21,6 +24,7 @@ describe('parseInboundMime', () => {
     expect(parsed.textBody).toContain('Hello plain text body')
     expect(parsed.htmlBody).toContain('<b>HTML</b>')
     expect(parsed.hasAttachments).toBe(true)
+    expect(parsed.replyToAddrs).toEqual([])
   })
 })
 
@@ -49,6 +53,53 @@ function mockForwardableEmail(opts: {
 }
 
 describe('handleInboundEmail', () => {
+  it('delivers directly to the sixth alias and respects its enabled state', async () => {
+    const { db, sqlite } = sqliteD1()
+    try {
+      for (let i = 1; i <= 5; i++) {
+        await createAlias(db, { address: `existing-${i}`, domain: 'example.com' })
+      }
+      const alias = await createAlias(db, { address: 'orders', domain: 'example.com' })
+      const receive = () => handleInboundEmail(
+        mockForwardableEmail({ to: 'Orders@EXAMPLE.COM', raw: sampleEml }),
+        { DB: db } as Env,
+      )
+
+      await receive()
+      sqlite.prepare('UPDATE aliases SET enabled = 0 WHERE id = ?').run(alias.id)
+      await receive()
+
+      expect(sqlite.prepare('SELECT alias_id, folder FROM messages').all()).toEqual([
+        { alias_id: alias.id, folder: 'inbox' },
+      ])
+    } finally {
+      sqlite.close()
+    }
+  })
+
+  it('stores parsed Reply-To mailboxes separately from the original From', async () => {
+    const { db, sqlite } = sqliteD1()
+    try {
+      await createAlias(db, { address: 'me', domain: 'example.com' })
+      const raw = new TextEncoder().encode([
+        'From: Author <sender@example.com>',
+        'To: me@example.com',
+        'Reply-To: Support <help@example.com>, Escalations: triage@example.com, help@example.com;',
+        'Subject: Reply destination',
+        '',
+        'Please use our support address.',
+      ].join('\r\n'))
+      await handleInboundEmail(mockForwardableEmail({ to: 'me@example.com', raw }), { DB: db } as Env)
+      const row = sqlite.prepare('SELECT id FROM messages').get() as { id: string }
+      await expect(getMessage(db, row.id)).resolves.toMatchObject({
+        fromAddr: 'sender@example.com',
+        replyToAddrs: ['help@example.com', 'triage@example.com'],
+      })
+    } finally {
+      sqlite.close()
+    }
+  })
+
   it('inserts inbox message for enabled alias (case-insensitive)', async () => {
     const first = vi
       .fn()

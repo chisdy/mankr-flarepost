@@ -4,7 +4,9 @@ import type { Env } from '../env'
 import { jsonError } from '../http/errors'
 import type { AppVariables } from '../http/middleware'
 import { getMailboxSettings } from '../mailbox-settings/service'
+import { MAX_BULK_MESSAGES, bulkUpdateMessages, isBulkAction, undoBulkMove } from './bulk'
 import {
+  DAY_MS,
   InvalidCursorError,
   deleteDraft,
   emptySpam,
@@ -39,6 +41,18 @@ type DraftBody = {
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0
+}
+
+function isId(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= 128 &&
+    value === value.trim()
+}
+
+function parseCalendarDate(value: string | undefined): number | null | undefined {
+  if (!value) return undefined
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
+  const ms = Date.parse(`${value}T00:00:00Z`)
+  return Number.isFinite(ms) && new Date(ms).toISOString().slice(0, 10) === value ? ms : null
 }
 
 function parseTo(value: unknown): string[] | null {
@@ -179,13 +193,32 @@ export function registerMessageRoutes(app: MessageApp): void {
   })
 
   app.get('/api/messages/search', async (c) => {
-    const q = c.req.query('q') ?? ''
+    const query = c.req.query('q') ?? ''
+    const from = c.req.query('from')?.trim() || undefined
+    const aliasId = c.req.query('aliasId')?.trim() || undefined
+    const tagId = c.req.query('tagId')?.trim() || undefined
+    const readRaw = c.req.query('read')
+    const afterMs = parseCalendarDate(c.req.query('after'))
+    const beforeMs = parseCalendarDate(c.req.query('before'))
+    if (
+      (aliasId !== undefined && !isId(aliasId)) ||
+      (tagId !== undefined && !isId(tagId)) ||
+      (readRaw !== undefined && readRaw !== '1' && readRaw !== '0') ||
+      afterMs === null || beforeMs === null ||
+      (afterMs !== undefined && beforeMs !== undefined && afterMs > beforeMs)
+    ) {
+      return jsonError(c, 400, 'invalid_query')
+    }
     const limitRaw = c.req.query('limit')
     const limit = limitRaw !== undefined ? Number(limitRaw) : undefined
     const cursor = c.req.query('cursor') ?? null
 
     try {
-      const result = await searchMessages(c.env.DB, { query: q, limit, cursor })
+      const result = await searchMessages(c.env.DB, {
+        query, from, aliasId, tagId, afterMs, limit, cursor,
+        beforeMsExclusive: beforeMs === undefined ? undefined : beforeMs + DAY_MS,
+        read: readRaw === undefined ? undefined : readRaw === '1',
+      })
       return c.json(result)
     } catch (e) {
       if (e instanceof InvalidCursorError) {
@@ -193,6 +226,29 @@ export function registerMessageRoutes(app: MessageApp): void {
       }
       throw e
     }
+  })
+
+  app.post('/api/messages/bulk/undo', async (c) => {
+    const body = await c.req.json<{ undoToken?: unknown } | null>().catch(() => null)
+    const token = body?.undoToken
+    if (typeof token !== 'string' || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(token)) {
+      return jsonError(c, 400, 'invalid_body')
+    }
+    return c.json(await undoBulkMove(c.env.DB, token))
+  })
+
+  app.post('/api/messages/bulk', async (c) => {
+    const body = await c.req.json<{ ids?: unknown; action?: unknown; tagId?: unknown } | null>()
+      .catch(() => null)
+    if (
+      !body || !isBulkAction(body.action) || !Array.isArray(body.ids) ||
+      body.ids.length === 0 || body.ids.length > MAX_BULK_MESSAGES || !body.ids.every(isId) ||
+      (body.action === 'tag' && !isId(body.tagId))
+    ) {
+      return jsonError(c, 400, 'invalid_body')
+    }
+    const tagId = body.action === 'tag' && isId(body.tagId) ? body.tagId : undefined
+    return c.json(await bulkUpdateMessages(c.env.DB, [...new Set(body.ids)], body.action, tagId))
   })
 
   app.post('/api/messages/drafts', async (c) => {

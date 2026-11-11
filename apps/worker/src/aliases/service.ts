@@ -1,5 +1,3 @@
-export const MAX_ALIASES = 5
-
 export type Alias = {
   id: string
   address: string
@@ -14,15 +12,6 @@ export type AliasRow = {
   enabled: number
   is_default: number
   created_at: number
-}
-
-export class AliasLimitError extends Error {
-  readonly code = 'alias_limit' as const
-
-  constructor(message = `Free tier allows at most ${MAX_ALIASES} aliases`) {
-    super(message)
-    this.name = 'AliasLimitError'
-  }
 }
 
 export class InvalidAddressError extends Error {
@@ -52,14 +41,11 @@ export function normalizeAddress(localOrFull: string, domain: string): string {
   return `${local}@${domainNorm}`
 }
 
-export function assertCanCreate(count: number): void {
-  if (count >= MAX_ALIASES) {
-    throw new AliasLimitError()
-  }
-}
-
 /** First alias, or any create when no default exists, becomes default. */
-export function shouldAutoDefaultOnCreate(existingCount: number, hasDefault: boolean): boolean {
+export function shouldAutoDefaultOnCreate(
+  existingCount: number,
+  hasDefault: boolean,
+): boolean {
   if (existingCount === 0) return true
   return !hasDefault
 }
@@ -84,7 +70,9 @@ export async function listAliases(db: D1Database): Promise<Alias[]> {
 }
 
 export async function countAliases(db: D1Database): Promise<number> {
-  const row = await db.prepare('SELECT COUNT(*) AS n FROM aliases').first<{ n: number }>()
+  const row = await db
+    .prepare('SELECT COUNT(*) AS n FROM aliases')
+    .first<{ n: number }>()
   return row?.n ?? 0
 }
 
@@ -95,7 +83,10 @@ export async function hasDefaultAlias(db: D1Database): Promise<boolean> {
   return row != null
 }
 
-export async function findAliasById(db: D1Database, id: string): Promise<Alias | null> {
+export async function findAliasById(
+  db: D1Database,
+  id: string,
+): Promise<Alias | null> {
   const row = await db
     .prepare(
       'SELECT id, address, enabled, is_default, created_at FROM aliases WHERE id = ?',
@@ -129,35 +120,29 @@ export async function createAlias(
   input: { address: string; domain: string },
 ): Promise<Alias> {
   const address = normalizeAddress(input.address, input.domain)
-  const count = await countAliases(db)
-  assertCanCreate(count)
-
-  const isDefault = shouldAutoDefaultOnCreate(count, await hasDefaultAlias(db))
   const id = crypto.randomUUID()
   const createdAt = Date.now()
 
   try {
-    await db
+    // Choose the default in the same statement so parallel creates cannot both claim it.
+    const inserted = await db
       .prepare(
         `INSERT INTO aliases (id, address, enabled, is_default, created_at)
-         VALUES (?, ?, 1, ?, ?)`,
+         SELECT ?, ?, 1,
+           CASE WHEN EXISTS (SELECT 1 FROM aliases WHERE is_default = 1) THEN 0 ELSE 1 END,
+           ?
+         RETURNING id, address, enabled, is_default, created_at`,
       )
-      .bind(id, address, isDefault ? 1 : 0, createdAt)
-      .run()
+      .bind(id, address, createdAt)
+      .first<AliasRow>()
+    if (!inserted) throw new Error('Alias insert did not return a row')
+    return rowToAlias(inserted)
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     if (/UNIQUE|constraint/i.test(msg)) {
       throw new InvalidAddressError('Alias address already exists')
     }
     throw e
-  }
-
-  return {
-    id,
-    address,
-    enabled: true,
-    isDefault,
-    createdAt,
   }
 }
 

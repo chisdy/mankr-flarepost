@@ -89,18 +89,25 @@ export function generateApiKeySecret(): string {
  * add ~100k iterations of latency to every send.
  */
 export async function hashApiKey(secret: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret))
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(secret),
+  )
   return toHex(digest)
 }
 
 /** Displayable fragment: prefix plus the first few random chars. */
 export function apiKeyPrefixOf(secret: string): string {
-  const random = secret.startsWith(KEY_PREFIX) ? secret.slice(KEY_PREFIX.length) : secret
+  const random = secret.startsWith(KEY_PREFIX)
+    ? secret.slice(KEY_PREFIX.length)
+    : secret
   return `${KEY_PREFIX}${random.slice(0, PREFIX_RANDOM_CHARS)}`
 }
 
 /** Extract the bearer token, or null when the header is missing/malformed. */
-export function parseBearerToken(header: string | null | undefined): string | null {
+export function parseBearerToken(
+  header: string | null | undefined,
+): string | null {
   if (!header) return null
   const match = /^Bearer\s+(\S+)$/i.exec(header.trim())
   return match ? match[1]! : null
@@ -116,7 +123,9 @@ export function normalizeLimit(value: unknown, fallback: number): number {
     throw new InvalidApiKeyInputError('Limit must be an integer')
   }
   if (value < MIN_LIMIT || value > MAX_LIMIT) {
-    throw new InvalidApiKeyInputError(`Limit must be between ${MIN_LIMIT} and ${MAX_LIMIT}`)
+    throw new InvalidApiKeyInputError(
+      `Limit must be between ${MIN_LIMIT} and ${MAX_LIMIT}`,
+    )
   }
   return value
 }
@@ -151,7 +160,10 @@ export async function listApiKeys(db: D1Database): Promise<ApiKeyWithAlias[]> {
   return (results ?? []).map(rowToApiKey)
 }
 
-export async function findApiKeyById(db: D1Database, id: string): Promise<ApiKeyWithAlias | null> {
+export async function findApiKeyById(
+  db: D1Database,
+  id: string,
+): Promise<ApiKeyWithAlias | null> {
   const row = await db
     .prepare(`${SELECT_KEY_WITH_ALIAS} WHERE k.id = ?`)
     .bind(id)
@@ -172,7 +184,9 @@ export async function findApiKeyByHash(
 }
 
 export async function countApiKeys(db: D1Database): Promise<number> {
-  const row = await db.prepare('SELECT COUNT(*) AS n FROM api_keys').first<{ n: number }>()
+  const row = await db
+    .prepare('SELECT COUNT(*) AS n FROM api_keys')
+    .first<{ n: number }>()
   return row?.n ?? 0
 }
 
@@ -196,25 +210,24 @@ export async function createApiKey(
     .prepare('SELECT id, address, enabled FROM aliases WHERE id = ?')
     .bind(aliasId)
     .first<{ id: string; address: string; enabled: number }>()
-  if (!alias) throw new InvalidApiKeyInputError('Alias not found')
+  if (!alias || !alias.enabled)
+    throw new InvalidApiKeyInputError('An enabled address is required')
 
   const hourlyLimit = normalizeLimit(input.hourlyLimit, DEFAULT_HOURLY_LIMIT)
   const dailyLimit = normalizeLimit(input.dailyLimit, DEFAULT_DAILY_LIMIT)
-
-  if ((await countApiKeys(db)) >= MAX_API_KEYS) {
-    throw new ApiKeyLimitError()
-  }
 
   const secret = generateApiKeySecret()
   const id = crypto.randomUUID()
   const createdAt = Date.now()
 
-  await db
+  const inserted = await db
     .prepare(
       `INSERT INTO api_keys (
          id, name, key_prefix, key_hash, alias_id, enabled,
          hourly_limit, daily_limit, created_at
-       ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+       ) SELECT ?, ?, ?, ?, ?, 1, ?, ?, ?
+         WHERE (SELECT COUNT(*) FROM api_keys) < ${MAX_API_KEYS}
+           AND EXISTS (SELECT 1 FROM aliases WHERE id = ? AND enabled = 1)`,
     )
     .bind(
       id,
@@ -225,8 +238,18 @@ export async function createApiKey(
       hourlyLimit,
       dailyLimit,
       createdAt,
+      aliasId,
     )
     .run()
+  if (!inserted.meta.changes) {
+    const current = await db
+      .prepare('SELECT enabled FROM aliases WHERE id = ?')
+      .bind(aliasId)
+      .first<{ enabled: number }>()
+    if (!current?.enabled)
+      throw new InvalidApiKeyInputError('An enabled address is required')
+    throw new ApiKeyLimitError()
+  }
 
   return {
     apiKey: {
@@ -280,8 +303,14 @@ export async function patchApiKey(
 }
 
 /** Deleting a key also drops its send logs and usage rows (ON DELETE CASCADE). */
-export async function deleteApiKey(db: D1Database, id: string): Promise<boolean> {
-  const result = await db.prepare('DELETE FROM api_keys WHERE id = ?').bind(id).run()
+export async function deleteApiKey(
+  db: D1Database,
+  id: string,
+): Promise<boolean> {
+  const result = await db
+    .prepare('DELETE FROM api_keys WHERE id = ?')
+    .bind(id)
+    .run()
   return (result.meta.changes ?? 0) > 0
 }
 
@@ -322,7 +351,10 @@ export function insertSendLogStatement(
     )
 }
 
-export function pruneSendLogsStatement(db: D1Database, now = Date.now()): D1PreparedStatement {
+export function pruneSendLogsStatement(
+  db: D1Database,
+  now = Date.now(),
+): D1PreparedStatement {
   return db
     .prepare('DELETE FROM api_send_logs WHERE created_at < ?')
     .bind(now - LOG_RETENTION_MS)

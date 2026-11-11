@@ -1,8 +1,5 @@
 export type SendErrorCode =
-  | 'not_configured'
-  | 'rate_limited'
-  | 'invalid_address'
-  | 'provider_error'
+  'not_configured' | 'rate_limited' | 'invalid_address' | 'provider_error'
 
 /** Identifies which service sent a message, so usage can be attributed per provider. */
 export type SendProviderId = 'resend' | 'brevo' | 'maileroo'
@@ -33,6 +30,9 @@ export type SendInput = {
   text: string
   html?: string
   replyTo?: string
+  /** Track whether a provider rejected the message or its outcome is unknown. */
+  trackOutcome?: boolean
+  idempotencyKey?: string
 }
 
 export type SendSuccess = {
@@ -41,7 +41,8 @@ export type SendSuccess = {
   quota?: ProviderQuotaReading
 }
 
-export type SendResult = SendSuccess | { error: SendErrorCode }
+export type SendResult =
+  SendSuccess | { error: SendErrorCode; outcome?: 'rejected' | 'unknown' }
 
 export interface SendAdapter {
   /** Which service this adapter speaks to; recorded against every send it makes. */
@@ -51,6 +52,6 @@ export interface SendAdapter {
 
 export function isSendError(
   result: SendResult,
-): result is { error: SendErrorCode } {
+): result is { error: SendErrorCode; outcome?: 'rejected' | 'unknown' } {
   return 'error' in result
 }

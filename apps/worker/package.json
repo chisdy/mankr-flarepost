@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev --ip 127.0.0.1 --port 8787 --config ../../wrangler.toml",
-    "build": "echo \"worker bundled by wrangler\"",
+    "build": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {

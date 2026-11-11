@@ -1,4 +1,5 @@
-export type Folder = 'inbox' | 'sent' | 'trash' | 'draft' | 'spam'
+type StoredFolder = 'inbox' | 'sent' | 'trash' | 'draft' | 'spam'
+export type Folder = StoredFolder | 'archive'
 
 /** Folders holding soft-deleted mail: hidden from search/starred/tag views, purged by retention. */
 export type PurgeableFolder = Extract<Folder, 'trash' | 'spam'>
@@ -28,38 +29,48 @@ export type MessageDetail = MessageListItem & {
   htmlBody: string | null
   aliasId: string
   direction: Direction
+  replyToAddrs: string[]
   lastErrorCode: string | null
   tags: MessageTag[]
 }
 
-export type MessageRow = {
+type MessageListRow = {
   id: string
-  alias_id: string
-  folder: Folder
-  direction: Direction
+  folder: StoredFolder
+  is_archived: number
   from_addr: string
   to_addrs: string
   subject: string
-  text_body: string
-  html_body: string | null
   is_read: number
   is_starred: number
   has_unsupported_attachments: number
-  last_error_code: string | null
   created_at: number
-  deleted_at: number | null
 }
 
-export const FOLDERS: readonly Folder[] = ['inbox', 'sent', 'trash', 'draft', 'spam'] as const
+type MessageRow = MessageListRow & {
+  alias_id: string
+  direction: Direction
+  reply_to_addrs: string
+  text_body: string
+  html_body: string | null
+  last_error_code: string | null
+}
+
+export const FOLDERS: readonly Folder[] = ['inbox', 'archive', 'sent', 'trash', 'draft', 'spam']
 export const DEFAULT_LIST_LIMIT = 50
 export const MAX_LIST_LIMIT = 100
 
 /** Folders excluded from search, starred, and tag listings. */
 const HIDDEN_FOLDERS_SQL = `('trash', 'draft', 'spam')`
 
-const MESSAGE_COLUMNS = `id, alias_id, folder, direction, from_addr, to_addrs, subject,
-                text_body, html_body, is_read, is_starred, has_unsupported_attachments,
-                last_error_code, created_at, deleted_at`
+const LIST_COLUMNS = [
+  'id', 'folder', 'is_archived', 'from_addr', 'to_addrs', 'subject',
+  'is_read', 'is_starred', 'has_unsupported_attachments', 'created_at',
+]
+const LIST_PROJECTION = LIST_COLUMNS.join(', ')
+const TAG_LIST_PROJECTION = LIST_COLUMNS.map((column) => `m.${column}`).join(', ')
+const DETAIL_PROJECTION = `${LIST_PROJECTION}, alias_id, direction, reply_to_addrs, text_body,
+                           html_body, last_error_code`
 
 export class InvalidCursorError extends Error {
   readonly code = 'invalid_cursor' as const
@@ -70,11 +81,15 @@ export class InvalidCursorError extends Error {
   }
 }
 
-/** Restore target: inbound → inbox, outbound → sent. Drafts are hard-deleted, not trashed. */
+/** Restore target: inbound → inbox, outbound → sent. The archive marker survives soft delete. */
 export function restoreTargetFolder(
   direction: Direction,
-): Exclude<Folder, 'trash' | 'draft' | 'spam'> {
+): 'inbox' | 'sent' {
   return direction === 'inbound' ? 'inbox' : 'sent'
+}
+
+function mailboxFolder(folder: StoredFolder, archived: number): Folder {
+  return folder === 'inbox' && archived === 1 ? 'archive' : folder
 }
 
 export function isFolder(value: string): value is Folder {
@@ -82,13 +97,18 @@ export function isFolder(value: string): value is Folder {
 }
 
 export function encodeCursor(createdAt: number, id: string): string {
-  return Buffer.from(`${createdAt}:${id}`, 'utf8').toString('base64url')
+  const bytes = new TextEncoder().encode(`${createdAt}:${id}`)
+  const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('')
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
 export function decodeCursor(cursor: string): { createdAt: number; id: string } | null {
-  if (!cursor) return null
+  if (!/^[A-Za-z0-9_-]{1,512}$/.test(cursor)) return null
   try {
-    const raw = Buffer.from(cursor, 'base64url').toString('utf8')
+    const binary = atob(cursor.replace(/-/g, '+').replace(/_/g, '/'))
+    const raw = new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(
+      Uint8Array.from(binary, (char) => char.charCodeAt(0)),
+    )
     const sep = raw.indexOf(':')
     if (sep <= 0) return null
     const createdAt = Number(raw.slice(0, sep))
@@ -110,10 +130,10 @@ function parseToAddrs(raw: string): string[] {
   }
 }
 
-export function rowToListItem(row: MessageRow, tagIds?: string[]): MessageListItem {
+export function rowToListItem(row: MessageListRow, tagIds?: string[]): MessageListItem {
   return {
     id: row.id,
-    folder: row.folder,
+    folder: mailboxFolder(row.folder, row.is_archived),
     fromAddr: row.from_addr,
     toAddrs: parseToAddrs(row.to_addrs),
     subject: row.subject,
@@ -132,6 +152,7 @@ export function rowToDetail(row: MessageRow, tags: MessageTag[] = []): MessageDe
     htmlBody: row.html_body,
     aliasId: row.alias_id,
     direction: row.direction,
+    replyToAddrs: parseToAddrs(row.reply_to_addrs),
     lastErrorCode: row.last_error_code,
     tags,
   }
@@ -139,7 +160,7 @@ export function rowToDetail(row: MessageRow, tags: MessageTag[] = []): MessageDe
 
 export function clampLimit(raw: number | undefined): number {
   if (raw === undefined || !Number.isFinite(raw) || raw <= 0) return DEFAULT_LIST_LIMIT
-  return Math.min(Math.floor(raw), MAX_LIST_LIMIT)
+  return Math.max(1, Math.min(Math.floor(raw), MAX_LIST_LIMIT))
 }
 
 export type ListMessagesOpts = {
@@ -150,7 +171,7 @@ export type ListMessagesOpts = {
   cursor?: string | null
 }
 
-function cursorClause(cursor: string | null | undefined): {
+function cursorClause(cursor: string | null | undefined, prefix = ''): {
   sql: string
   binds: unknown[]
 } {
@@ -158,13 +179,14 @@ function cursorClause(cursor: string | null | undefined): {
   const decoded = decodeCursor(cursor)
   if (!decoded) throw new InvalidCursorError()
   return {
-    sql: ` AND (created_at < ? OR (created_at = ? AND id < ?))`,
-    binds: [decoded.createdAt, decoded.createdAt, decoded.id],
+    sql: ` AND (${prefix}created_at, ${prefix}id) < (?, ?)`,
+    binds: [decoded.createdAt, decoded.id],
   }
 }
 
 export type FolderCounts = {
   inbox: number
+  archive: number
   sent: number
   trash: number
   draft: number
@@ -176,6 +198,7 @@ export type FolderCounts = {
 export async function getFolderCounts(db: D1Database): Promise<FolderCounts> {
   const counts: FolderCounts = {
     inbox: 0,
+    archive: 0,
     sent: 0,
     trash: 0,
     draft: 0,
@@ -184,13 +207,16 @@ export async function getFolderCounts(db: D1Database): Promise<FolderCounts> {
   }
 
   const { results: folderRows } = await db
-    .prepare(`SELECT folder, COUNT(*) AS cnt FROM messages GROUP BY folder`)
-    .all<{ folder: string; cnt: number }>()
+    .prepare(
+      `SELECT folder, CASE WHEN folder = 'inbox' THEN is_archived ELSE 0 END AS archived,
+              COUNT(*) AS cnt
+       FROM messages
+       GROUP BY folder, archived`,
+    )
+    .all<{ folder: StoredFolder; archived: number; cnt: number }>()
 
   for (const row of folderRows ?? []) {
-    if (isFolder(row.folder)) {
-      counts[row.folder] = Number(row.cnt) || 0
-    }
+    counts[mailboxFolder(row.folder, row.archived)] = Number(row.cnt) || 0
   }
 
   const starredRow = await db
@@ -212,14 +238,13 @@ export async function listMessages(
 ): Promise<{ items: MessageListItem[]; nextCursor: string | null }> {
   const limit = clampLimit(opts.limit)
   const fetchLimit = limit + 1
-  const cursor = cursorClause(opts.cursor)
-
-  let results: MessageRow[]
+  const cursor = cursorClause(opts.cursor, opts.tagId && !opts.starred ? 'm.' : '')
+  let results: MessageListRow[]
 
   if (opts.starred) {
     const { results: rows } = await db
       .prepare(
-        `SELECT ${MESSAGE_COLUMNS}
+        `SELECT ${LIST_PROJECTION}
          FROM messages
          WHERE is_starred = 1
            AND folder NOT IN ${HIDDEN_FOLDERS_SQL}
@@ -228,58 +253,42 @@ export async function listMessages(
          LIMIT ?`,
       )
       .bind(...cursor.binds, fetchLimit)
-      .all<MessageRow>()
+      .all<MessageListRow>()
     results = rows ?? []
   } else if (opts.tagId) {
-    const tagCursorSql = cursor.sql
-      ? ` AND (m.created_at < ? OR (m.created_at = ? AND m.id < ?))`
-      : ''
     const { results: rows } = await db
       .prepare(
-        `SELECT m.id, m.alias_id, m.folder, m.direction, m.from_addr, m.to_addrs, m.subject,
-                m.text_body, m.html_body, m.is_read, m.is_starred, m.has_unsupported_attachments,
-                m.last_error_code, m.created_at, m.deleted_at
+        `SELECT ${TAG_LIST_PROJECTION}
          FROM messages m
          INNER JOIN message_tags mt ON mt.message_id = m.id
          WHERE mt.tag_id = ?
            AND m.folder NOT IN ${HIDDEN_FOLDERS_SQL}
-           ${tagCursorSql}
+           ${cursor.sql}
          ORDER BY m.created_at DESC, m.id DESC
          LIMIT ?`,
       )
       .bind(opts.tagId, ...cursor.binds, fetchLimit)
-      .all<MessageRow>()
+      .all<MessageListRow>()
     results = rows ?? []
   } else {
     const folder = opts.folder ?? 'inbox'
+    const isInboxFolder = folder === 'inbox' || folder === 'archive'
+    const folderFilter = isInboxFolder ? "folder = 'inbox' AND is_archived = ?" : 'folder = ?'
     const { results: rows } = await db
       .prepare(
-        `SELECT ${MESSAGE_COLUMNS}
+        `SELECT ${LIST_PROJECTION}
          FROM messages
-         WHERE folder = ?
+         WHERE ${folderFilter}
            ${cursor.sql}
          ORDER BY created_at DESC, id DESC
          LIMIT ?`,
       )
-      .bind(folder, ...cursor.binds, fetchLimit)
-      .all<MessageRow>()
+      .bind(isInboxFolder ? Number(folder === 'archive') : folder, ...cursor.binds, fetchLimit)
+      .all<MessageListRow>()
     results = rows ?? []
   }
 
-  const hasMore = results.length > limit
-  const page = hasMore ? results.slice(0, limit) : results
-  const last = page[page.length - 1]
-  const nextCursor = hasMore && last ? encodeCursor(last.created_at, last.id) : null
-
-  const tagIdsByMessage = await loadTagIdsForMessages(
-    db,
-    page.map((r) => r.id),
-  )
-
-  return {
-    items: page.map((row) => rowToListItem(row, tagIdsByMessage.get(row.id) ?? [])),
-    nextCursor,
-  }
+  return toListPage(db, results, limit)
 }
 
 const MAX_SEARCH_QUERY = 100
@@ -291,6 +300,12 @@ export function escapeLikePattern(value: string): string {
 
 export type SearchMessagesOpts = {
   query: string
+  from?: string
+  aliasId?: string
+  tagId?: string
+  afterMs?: number
+  beforeMsExclusive?: number
+  read?: boolean
   limit?: number
   cursor?: string | null
 }
@@ -301,33 +316,63 @@ export async function searchMessages(
   opts: SearchMessagesOpts,
 ): Promise<{ items: MessageListItem[]; nextCursor: string | null }> {
   const raw = opts.query.trim().slice(0, MAX_SEARCH_QUERY)
-  if (!raw) {
+  const from = opts.from?.trim().slice(0, 320)
+  const filters: string[] = []
+  const binds: (string | number)[] = []
+  if (raw) {
+    const pattern = `%${escapeLikePattern(raw)}%`
+    filters.push(`(subject LIKE ? ESCAPE '\\' OR from_addr LIKE ? ESCAPE '\\'
+                   OR text_body LIKE ? ESCAPE '\\')`)
+    binds.push(pattern, pattern, pattern)
+  }
+  if (from) {
+    filters.push(`from_addr LIKE ? ESCAPE '\\'`)
+    binds.push(`%${escapeLikePattern(from)}%`)
+  }
+  if (opts.aliasId) {
+    filters.push('alias_id = ?')
+    binds.push(opts.aliasId)
+  }
+  if (opts.tagId) {
+    filters.push('id IN (SELECT message_id FROM message_tags WHERE tag_id = ?)')
+    binds.push(opts.tagId)
+  }
+  if (opts.afterMs !== undefined) {
+    filters.push('created_at >= ?')
+    binds.push(opts.afterMs)
+  }
+  if (opts.beforeMsExclusive !== undefined) {
+    filters.push('created_at < ?')
+    binds.push(opts.beforeMsExclusive)
+  }
+  if (opts.read !== undefined) {
+    filters.push('is_read = ?')
+    binds.push(Number(opts.read))
+  }
+  if (filters.length === 0) {
     return { items: [], nextCursor: null }
   }
 
   const limit = clampLimit(opts.limit)
-  const fetchLimit = limit + 1
   const cursor = cursorClause(opts.cursor)
-  const pattern = `%${escapeLikePattern(raw)}%`
 
   const { results: rows } = await db
     .prepare(
-      `SELECT ${MESSAGE_COLUMNS}
+      `SELECT ${LIST_PROJECTION}
        FROM messages
        WHERE folder NOT IN ${HIDDEN_FOLDERS_SQL}
-         AND (
-           subject LIKE ? ESCAPE '\\'
-           OR from_addr LIKE ? ESCAPE '\\'
-           OR text_body LIKE ? ESCAPE '\\'
-         )
+         AND ${filters.join(' AND ')}
          ${cursor.sql}
        ORDER BY created_at DESC, id DESC
        LIMIT ?`,
     )
-    .bind(pattern, pattern, pattern, ...cursor.binds, fetchLimit)
-    .all<MessageRow>()
+    .bind(...binds, ...cursor.binds, limit + 1)
+    .all<MessageListRow>()
 
-  const results = rows ?? []
+  return toListPage(db, rows ?? [], limit)
+}
+
+async function toListPage(db: D1Database, results: MessageListRow[], limit: number) {
   const hasMore = results.length > limit
   const page = hasMore ? results.slice(0, limit) : results
   const last = page[page.length - 1]
@@ -390,7 +435,7 @@ export async function loadTagsForMessage(
 
 export async function getMessage(db: D1Database, id: string): Promise<MessageDetail | null> {
   const row = await db
-    .prepare(`SELECT ${MESSAGE_COLUMNS} FROM messages WHERE id = ?`)
+    .prepare(`SELECT ${DETAIL_PROJECTION} FROM messages WHERE id = ?`)
     .bind(id)
     .first<MessageRow>()
   if (!row) return null
@@ -430,7 +475,7 @@ async function moveToPurgeableFolder(
   const row = await db
     .prepare('SELECT id, folder FROM messages WHERE id = ?')
     .bind(id)
-    .first<{ id: string; folder: Folder }>()
+    .first<{ id: string; folder: StoredFolder }>()
   if (!row || row.folder === 'draft') return false
   if (row.folder === target) return true
 
@@ -454,19 +499,21 @@ export async function restoreMessage(
   id: string,
 ): Promise<{ folder: Exclude<Folder, 'trash' | 'draft' | 'spam'> } | null> {
   const row = await db
-    .prepare('SELECT id, folder, direction FROM messages WHERE id = ?')
+    .prepare('SELECT id, folder, direction, is_archived FROM messages WHERE id = ?')
     .bind(id)
-    .first<{ id: string; folder: Folder; direction: Direction }>()
+    .first<{ id: string; folder: StoredFolder; direction: Direction; is_archived: number }>()
 
   if (!row || (row.folder !== 'trash' && row.folder !== 'spam')) return null
 
   const folder = restoreTargetFolder(row.direction)
-  await db
-    .prepare('UPDATE messages SET folder = ?, deleted_at = NULL WHERE id = ?')
+  const result = await db
+    .prepare(`UPDATE messages SET folder = ?, deleted_at = NULL
+              WHERE id = ? AND folder IN ('trash', 'spam')`)
     .bind(folder, id)
     .run()
 
-  return { folder }
+  if (!result.meta.changes) return null
+  return { folder: folder === 'inbox' && row.is_archived === 1 ? 'archive' : folder }
 }
 
 /** Guard for draft-only operations: `messages.id` is shared across folders. */
@@ -539,6 +586,7 @@ export function purgeExpiredStatements(
   return [
     ...purgeFolderStatements(db, 'trash', now - retention.trashDays * DAY_MS),
     ...purgeFolderStatements(db, 'spam', now - retention.spamDays * DAY_MS),
+    db.prepare('DELETE FROM message_move_undo WHERE expires_at <= ?').bind(now),
   ]
 }
 
@@ -559,6 +607,7 @@ export type InsertInboundMessageInput = {
   aliasId: string
   fromAddr: string
   toAddrs: string[]
+  replyToAddrs?: string[]
   subject: string
   textBody: string
   htmlBody: string | null
@@ -576,8 +625,9 @@ export async function insertInboundMessage(
     .prepare(
       `INSERT INTO messages (
          id, alias_id, folder, direction, from_addr, to_addrs, subject,
-         text_body, html_body, is_read, is_starred, has_unsupported_attachments, created_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+         text_body, html_body, is_read, is_starred, has_unsupported_attachments, created_at,
+         reply_to_addrs
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
     )
     .bind(
       id,
@@ -592,6 +642,7 @@ export async function insertInboundMessage(
       0,
       input.hasUnsupportedAttachments ? 1 : 0,
       createdAt,
+      JSON.stringify(input.replyToAddrs ?? []),
     )
     .run()
   return { id }
@@ -607,14 +658,13 @@ export type InsertOutboundMessageInput = {
   providerMessageId: string | null
 }
 
-/** Insert a successfully sent message into the sent folder. */
-export async function insertOutboundMessage(
+export function prepareOutboundMessage(
   db: D1Database,
   input: InsertOutboundMessageInput,
-): Promise<{ id: string }> {
-  const id = crypto.randomUUID()
-  const createdAt = Date.now()
-  await db
+  id: string,
+  createdAt: number,
+): D1PreparedStatement {
+  return db
     .prepare(
       `INSERT INTO messages (
          id, alias_id, folder, direction, from_addr, to_addrs, subject,
@@ -637,7 +687,15 @@ export async function insertOutboundMessage(
       input.providerMessageId,
       createdAt,
     )
-    .run()
+}
+
+/** Insert a successfully sent message into the sent folder. */
+export async function insertOutboundMessage(
+  db: D1Database,
+  input: InsertOutboundMessageInput,
+): Promise<{ id: string }> {
+  const id = crypto.randomUUID()
+  await prepareOutboundMessage(db, input, id, Date.now()).run()
   return { id }
 }
 

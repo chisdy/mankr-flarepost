@@ -45,9 +45,15 @@ export function createResendSendAdapter(apiKey: string): SendAdapter {
       try {
         const res = await fetch('https://api.resend.com/emails', {
           method: 'POST',
+          ...(input.trackOutcome
+            ? { signal: AbortSignal.timeout(30_000) }
+            : {}),
           headers: {
             Authorization: `Bearer ${key}`,
             'Content-Type': 'application/json',
+            ...(input.idempotencyKey
+              ? { 'Idempotency-Key': input.idempotencyKey }
+              : {}),
           },
           body: JSON.stringify(payload),
         })
@@ -56,14 +62,27 @@ export function createResendSendAdapter(apiKey: string): SendAdapter {
           return { error: 'invalid_address' }
         }
         if (!res.ok) {
-          return { error: 'provider_error' }
+          return {
+            error: 'provider_error',
+            ...(input.trackOutcome
+              ? {
+                  outcome:
+                    res.status < 500
+                      ? ('rejected' as const)
+                      : ('unknown' as const),
+                }
+              : {}),
+          }
         }
 
         const quota = readQuotaHeaders(res)
         const data = (await res.json().catch(() => ({}))) as { id?: string }
         return quota ? { id: data.id, quota } : { id: data.id }
       } catch {
-        return { error: 'provider_error' }
+        return {
+          error: 'provider_error',
+          ...(input.trackOutcome ? { outcome: 'unknown' as const } : {}),
+        }
       }
     },
   }

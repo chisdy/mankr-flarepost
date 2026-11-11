@@ -2,6 +2,7 @@ import type { Hono } from 'hono'
 import type { Env } from '../env'
 import { jsonError } from '../http/errors'
 import type { AppVariables } from '../http/middleware'
+import { listSendLogs, parseLogCursor } from './logs'
 import {
   ApiKeyLimitError,
   EMPTY_USAGE,
@@ -34,13 +35,40 @@ function toPublicKey(key: ApiKeyWithAlias, usage: ApiKeyUsage = EMPTY_USAGE) {
 }
 
 export function registerApiKeyRoutes(app: ApiKeyApp): void {
+  app.get('/api/api-send-logs', async (c) => {
+    const status = c.req.query('status')
+    const rawLimit = c.req.query('limit')
+    const limit = rawLimit === undefined ? 25 : Number(rawLimit)
+    const rawCursor = c.req.query('cursor')
+    const cursor = rawCursor ? parseLogCursor(rawCursor) : undefined
+    if (
+      (status && status !== 'sent' && status !== 'failed') ||
+      !Number.isInteger(limit) ||
+      limit < 1 ||
+      limit > 100 ||
+      (rawCursor && !cursor)
+    ) {
+      return jsonError(c, 400, 'invalid_body')
+    }
+    return c.json(
+      await listSendLogs(c.env.DB, {
+        apiKeyId: c.req.query('apiKeyId'),
+        status: status as 'sent' | 'failed' | undefined,
+        limit,
+        cursor: cursor ?? undefined,
+      }),
+    )
+  })
+
   app.get('/api/api-keys', async (c) => {
     const [keys, usageByKey] = await Promise.all([
       listApiKeys(c.env.DB),
       getUsageByKey(c.env.DB),
     ])
     return c.json({
-      apiKeys: keys.map((key) => toPublicKey(key, usageByKey.get(key.id) ?? EMPTY_USAGE)),
+      apiKeys: keys.map((key) =>
+        toPublicKey(key, usageByKey.get(key.id) ?? EMPTY_USAGE),
+      ),
     })
   })
 
@@ -65,8 +93,10 @@ export function registerApiKeyRoutes(app: ApiKeyApp): void {
       const created = await createApiKey(c.env.DB, {
         name: body.name,
         aliasId: body.aliasId,
-        hourlyLimit: typeof body.hourlyLimit === 'number' ? body.hourlyLimit : undefined,
-        dailyLimit: typeof body.dailyLimit === 'number' ? body.dailyLimit : undefined,
+        hourlyLimit:
+          typeof body.hourlyLimit === 'number' ? body.hourlyLimit : undefined,
+        dailyLimit:
+          typeof body.dailyLimit === 'number' ? body.dailyLimit : undefined,
       })
       return c.json(
         {
@@ -107,7 +137,8 @@ export function registerApiKeyRoutes(app: ApiKeyApp): void {
     } = {}
     if (typeof body.name === 'string') patch.name = body.name
     if (typeof body.enabled === 'boolean') patch.enabled = body.enabled
-    if (typeof body.hourlyLimit === 'number') patch.hourlyLimit = body.hourlyLimit
+    if (typeof body.hourlyLimit === 'number')
+      patch.hourlyLimit = body.hourlyLimit
     if (typeof body.dailyLimit === 'number') patch.dailyLimit = body.dailyLimit
 
     if (
@@ -122,7 +153,8 @@ export function registerApiKeyRoutes(app: ApiKeyApp): void {
     try {
       const updated = await patchApiKey(c.env.DB, c.req.param('id'), patch)
       if (!updated) return jsonError(c, 404, 'not_found')
-      const usage = (await getUsageByKey(c.env.DB)).get(updated.id) ?? EMPTY_USAGE
+      const usage =
+        (await getUsageByKey(c.env.DB)).get(updated.id) ?? EMPTY_USAGE
       return c.json(toPublicKey(updated, usage))
     } catch (e) {
       if (e instanceof InvalidApiKeyInputError) {

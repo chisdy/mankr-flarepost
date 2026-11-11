@@ -248,7 +248,7 @@ export function SendProvidersSettings() {
             })}
           </FieldGroup>
         </CardContent>
-        <CardFooter className="border-t border-border/60 pt-4">
+        <CardFooter className="pt-4">
           <Button type="submit" disabled={loading || saving}>
             {saving ? t("auth.saving") : t("settings.save")}
           </Button>

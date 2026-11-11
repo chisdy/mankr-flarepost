@@ -2,6 +2,7 @@ import PostalMime from 'postal-mime'
 
 export type ParsedInbound = {
   fromAddr: string
+  replyToAddrs: string[]
   subject: string
   textBody: string
   htmlBody: string | null
@@ -21,9 +22,17 @@ function mailboxAddress(addr: unknown): string | null {
 export async function parseInboundMime(raw: ArrayBuffer | Uint8Array): Promise<ParsedInbound> {
   const email = await PostalMime.parse(raw)
   const fromAddr = mailboxAddress(email.from) ?? mailboxAddress(email.sender) ?? ''
+  const replyToAddrs = [...new Set(
+    (email.replyTo ?? [])
+      .flatMap((address) => address.group ?? [address])
+      .map((address) => address.address?.trim() ?? '')
+      .filter((address) =>
+        address.length <= 254 && /^[^\s<>@,;\x00-\x1f\x7f]+@[^\s<>@,;\x00-\x1f\x7f]+$/.test(address)),
+  )]
 
   return {
     fromAddr,
+    replyToAddrs,
     subject: email.subject ?? '',
     textBody: email.text ?? '',
     htmlBody: email.html ?? null,

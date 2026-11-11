@@ -1,497 +1,403 @@
-import {
-  AlertDiamondIcon,
-  ArrowLeft01Icon,
-  ArrowTurnBackwardIcon,
-  ArrowTurnForwardIcon,
-  Delete02Icon,
-  StarIcon,
-  UndoIcon,
-} from "@hugeicons/core-free-icons"
-
-import { useEffect, useState } from "react"
+import { Attachment01Icon, Mail01Icon } from "@hugeicons/core-free-icons"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { Link, useNavigate, useParams } from "react-router"
+import { useLocation, useNavigate, useParams } from "react-router"
 import { toast } from "sonner"
 
 import { Icon } from "@/components/icon"
-import { PageHeader } from "@/components/page-header"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
+  applyMailboxBulk,
+  undoMailboxBulk,
+} from "@/features/mailbox/mailbox-api"
+import {
+  patchMailboxReturnSnapshot,
+  requestMailboxListRefresh,
+  type MailboxNavigationState,
+} from "@/features/mailbox/mailbox-navigation"
 import { api, isApiError } from "@/lib/api"
-import { formatFullTime } from "@/lib/format"
-import { sanitize } from "@/lib/sanitize"
+import { invalidateMailboxMetadata } from "@/lib/mailbox-metadata"
+import { sanitizeMail } from "@/lib/sanitize"
 import type { MessageDetail, Tag } from "@/lib/types"
 
-function MessageDetailSkeleton({ label }: { label: string }) {
+import { MessageFooter, MessageToolbar } from "./message-actions"
+import { MessageEnvelope } from "./message-envelope"
+
+interface MessagePaperProps {
+  children: ReactNode
+  labelledBy?: string
+}
+
+function MessagePaper({ children, labelledBy }: MessagePaperProps) {
   return (
-    <div
-      className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden"
-      aria-busy="true"
-      aria-live="polite"
-      aria-label={label}
-    >
-      <PageHeader
-        leading={<Skeleton className="size-8 rounded-lg" />}
-        actions={
-          <div className="flex items-center gap-2">
-            <Skeleton className="h-8 w-20 rounded-lg" />
-            <Skeleton className="h-8 w-24 rounded-lg" />
-            <Skeleton className="h-8 w-20 rounded-lg" />
-          </div>
-        }
-      />
-
-      <ScrollArea className="min-h-0 flex-1">
-        <article className="flex w-full flex-col gap-5 px-4 py-6 pb-24 sm:px-8">
-          <div className="flex flex-col gap-3">
-            <Skeleton className="h-8 w-3/4 max-w-xl sm:h-9" />
-            <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-              <Skeleton className="h-4 w-64 max-w-full" />
-              <Skeleton className="h-4 w-36" />
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Skeleton className="h-6 w-14 rounded-full" />
-              <Skeleton className="h-6 w-16 rounded-full" />
-              <Skeleton className="h-6 w-20 rounded-full" />
-            </div>
-          </div>
-
-          <Separator />
-
-          <div className="flex flex-col gap-3">
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-[92%]" />
-            <Skeleton className="h-4 w-[88%]" />
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-[70%]" />
-            <Skeleton className="mt-2 h-4 w-full" />
-            <Skeleton className="h-4 w-[85%]" />
-            <Skeleton className="h-4 w-[60%]" />
-          </div>
-        </article>
-      </ScrollArea>
+    <div className="w-full px-2 pt-1 pb-3 sm:px-4 sm:pb-5">
+      <article
+        aria-labelledby={labelledBy}
+        className="min-w-0 rounded-xl bg-card px-4 pt-6 pb-9 text-card-foreground sm:rounded-2xl sm:px-8 sm:pt-8 sm:pb-12"
+      >
+        {children}
+      </article>
     </div>
   )
 }
 
+function MessageDetailSkeleton({ label }: { label: string }) {
+  return (
+    <>
+      <p className="sr-only" role="status">
+        {label}
+      </p>
+      <MessagePaper>
+        <div aria-hidden="true">
+          <div className="flex flex-col gap-4 border-b border-border pb-5">
+            <Skeleton className="h-8 w-3/4 max-w-md rounded-md motion-reduce:animate-none sm:h-9" />
+            <div className="flex items-center gap-3">
+              <Skeleton className="size-9 rounded-lg motion-reduce:animate-none sm:size-10" />
+              <div className="flex flex-col gap-2">
+                <Skeleton className="h-3.5 w-40 motion-reduce:animate-none" />
+                <Skeleton className="h-3 w-28 motion-reduce:animate-none" />
+              </div>
+            </div>
+            <Skeleton className="h-7 w-20 rounded-lg motion-reduce:animate-none" />
+          </div>
+          <div className="flex max-w-[72ch] flex-col gap-3 pt-6 sm:pt-8">
+            <Skeleton className="h-3.5 w-full motion-reduce:animate-none" />
+            <Skeleton className="h-3.5 w-11/12 motion-reduce:animate-none" />
+            <Skeleton className="h-3.5 w-4/5 motion-reduce:animate-none" />
+            <Skeleton className="h-3.5 w-3/5 motion-reduce:animate-none" />
+          </div>
+        </div>
+      </MessagePaper>
+    </>
+  )
+}
+
+function getMailboxPath(
+  source: unknown,
+  folder: MessageDetail["folder"] | undefined
+) {
+  return typeof source === "string" &&
+    /^\/(?:inbox|draft|sent|archive|spam|trash|starred|search|tags\/[^/?#]+)(?:\?[^#]*)?$/.test(
+      source
+    )
+    ? source
+    : `/${folder ?? "inbox"}`
+}
+
 export function MessageView() {
-  const { t, i18n } = useTranslation()
   const { id } = useParams<{ id: string }>()
+  return <MessageReader key={id} id={id} />
+}
+
+interface MessageReaderProps {
+  id?: string
+}
+
+function MessageReader({ id }: MessageReaderProps) {
+  const { t } = useTranslation()
   const navigate = useNavigate()
+  const { state } = useLocation()
   const [message, setMessage] = useState<MessageDetail | null>(null)
-  const [allTags, setAllTags] = useState<Tag[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loadStatus, setLoadStatus] = useState<
+    "loading" | "ready" | "notFound" | "failed"
+  >(id ? "loading" : "notFound")
+  const [attempt, setAttempt] = useState(0)
   const [acting, setActing] = useState(false)
-  const [tagsOpen, setTagsOpen] = useState(false)
+  const [showRemoteImages, setShowRemoteImages] = useState(false)
+  const activeRequest = useRef<AbortSignal | null>(null)
 
   useEffect(() => {
     if (!id) return
-    let cancelled = false
+    const controller = new AbortController()
+    const { signal } = controller
+    activeRequest.current = signal
 
-    async function load() {
-      setLoading(true)
-      try {
-        const [msg, tagsRes] = await Promise.all([
-          api<MessageDetail>(`/api/messages/${id}`),
-          api<{ tags: Tag[] }>("/api/tags").catch(() => ({
-            tags: [] as Tag[],
-          })),
-        ])
-        if (cancelled) return
+    api<MessageDetail>(`/api/messages/${id}`, { signal })
+      .then((msg) => {
+        if (signal.aborted) return
         setMessage(msg)
-        setAllTags(tagsRes.tags)
-        if (!msg.isRead && msg.folder !== "trash" && msg.folder !== "spam") {
-          void api(`/api/messages/${id}/read`, { method: "POST" }).then(() => {
-            if (!cancelled) {
-              setMessage((prev) => (prev ? { ...prev, isRead: true } : prev))
-            }
+        setLoadStatus("ready")
+        if (
+          !msg.isRead &&
+          msg.folder !== "trash" &&
+          msg.folder !== "spam" &&
+          msg.folder !== "draft"
+        ) {
+          void api(`/api/messages/${id}/read`, { method: "POST" })
+            .then(() => {
+              patchMailboxReturnSnapshot(id, { isRead: true })
+              if (!signal.aborted)
+                setMessage((current) => current && { ...current, isRead: true })
+            })
+            .catch(() => {})
+        }
+      })
+      .catch((error: unknown) => {
+        if (signal.aborted) return
+        setLoadStatus(
+          isApiError(error) && error.status === 404 ? "notFound" : "failed"
+        )
+      })
+
+    return () => controller.abort()
+  }, [id, attempt])
+
+  const source = Array.isArray(state?.messageIds)
+    ? (state as MailboxNavigationState)
+    : undefined
+  const position = id ? (source?.messageIds.indexOf(id) ?? -1) : -1
+  const backTo = getMailboxPath(state?.mailboxPath, message?.folder)
+  const htmlBody = message?.htmlBody
+  const rendered = useMemo(
+    () => (htmlBody ? sanitizeMail(htmlBody, showRemoteImages) : null),
+    [htmlBody, showRemoteImages]
+  )
+
+  async function act<T>(
+    request: () => Promise<T>,
+    onSuccess: (result: T) => void,
+    fallbackError: string
+  ) {
+    const signal = activeRequest.current
+    if (acting || !signal || signal.aborted) return
+    setActing(true)
+    try {
+      const result = await request()
+      if (!signal.aborted) onSuccess(result)
+    } catch (error) {
+      if (!signal.aborted)
+        toast.error(isApiError(error) ? error.message : fallbackError)
+    } finally {
+      if (!signal.aborted) setActing(false)
+    }
+  }
+
+  function move(action: "trash" | "spam" | "archive" | "unarchive") {
+    if (!message) return
+    const destination = action === "unarchive" ? "inbox" : action
+    const messageId = message.id
+    void act(
+      () =>
+        action === "spam"
+          ? api(`/api/messages/${messageId}/spam`, { method: "POST" }).then(
+              () => ({ changed: 1, undoToken: undefined })
+            )
+          : applyMailboxBulk([messageId], action),
+      ({ changed, undoToken }) => {
+        if (changed) {
+          invalidateMailboxMetadata()
+          patchMailboxReturnSnapshot(messageId, { folder: destination })
+          toast.success(t(`message.moved.${destination}`), {
+            action: undoToken
+              ? {
+                  label: t("message.undo"),
+                  onClick: () =>
+                    void undoMailboxBulk(undoToken)
+                      .then(({ changed: restored }) => {
+                        if (restored) {
+                          invalidateMailboxMetadata()
+                          requestMailboxListRefresh()
+                          toast.success(t("message.moveUndone"))
+                        } else {
+                          toast.error(t("message.undoFailed"))
+                        }
+                      })
+                      .catch(() => toast.error(t("message.undoFailed"))),
+                }
+              : undefined,
           })
+        } else {
+          requestMailboxListRefresh()
         }
-      } catch (err) {
-        if (!cancelled) {
-          toast.error(isApiError(err) ? err.message : t("message.notFound"))
-          navigate("/inbox", { replace: true })
-        }
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-
-    void load()
-    return () => {
-      cancelled = true
-    }
-  }, [id, navigate, t])
-
-  async function trash() {
-    if (!id) return
-    setActing(true)
-    try {
-      await api(`/api/messages/${id}/trash`, { method: "POST" })
-      toast.success(t("message.movedToTrash"))
-      navigate(message?.folder === "spam" ? "/spam" : "/inbox")
-    } catch (err) {
-      toast.error(isApiError(err) ? err.message : t("message.trashFailed"))
-    } finally {
-      setActing(false)
-    }
-  }
-
-  async function markSpam() {
-    if (!id) return
-    setActing(true)
-    try {
-      await api(`/api/messages/${id}/spam`, { method: "POST" })
-      toast.success(t("message.movedToSpam"))
-      navigate("/inbox")
-    } catch (err) {
-      toast.error(isApiError(err) ? err.message : t("message.spamFailed"))
-    } finally {
-      setActing(false)
-    }
-  }
-
-  async function restore() {
-    if (!id) return
-    setActing(true)
-    try {
-      const result = await api<{ ok: true; folder: "inbox" | "sent" }>(
-        `/api/messages/${id}/restore`,
-        { method: "POST" }
+        navigate(backTo, { replace: true, state: { restoreMailbox: true } })
+      },
+      t(
+        destination === "trash"
+          ? "message.trashFailed"
+          : destination === "spam"
+            ? "message.spamFailed"
+            : "message.archiveFailed"
       )
-      toast.success(t("message.restored"))
-      navigate(`/${result.folder}`)
-    } catch (err) {
-      toast.error(isApiError(err) ? err.message : t("message.restoreFailed"))
-    } finally {
-      setActing(false)
-    }
+    )
   }
 
-  async function toggleStar() {
-    if (!id || !message) return
-    setActing(true)
-    const next = !message.isStarred
-    try {
-      await api(`/api/messages/${id}/star`, {
-        method: "POST",
-        body: JSON.stringify({ starred: next }),
-      })
-      setMessage({ ...message, isStarred: next })
-    } catch (err) {
-      toast.error(isApiError(err) ? err.message : t("mailbox.starFailed"))
-    } finally {
-      setActing(false)
-    }
+  function restore() {
+    if (!message) return
+    void act(
+      () =>
+        api<{ ok: true; folder: "inbox" | "sent" }>(
+          `/api/messages/${message.id}/restore`,
+          {
+            method: "POST",
+          }
+        ),
+      ({ folder }) => {
+        invalidateMailboxMetadata()
+        patchMailboxReturnSnapshot(message.id, { folder })
+        toast.success(t("message.restored"))
+        navigate(`/${folder}`, { replace: true })
+      },
+      t("message.restoreFailed")
+    )
   }
 
-  async function toggleTag(tagId: string) {
-    if (!id || !message) return
-    const current = new Set(message.tags.map((x) => x.id))
-    if (current.has(tagId)) current.delete(tagId)
-    else current.add(tagId)
-    const tagIds = [...current]
-    setActing(true)
-    try {
-      await api<{ tagIds: string[] }>(`/api/messages/${id}/tags`, {
-        method: "PUT",
-        body: JSON.stringify({ tagIds }),
-      })
-      const tags = allTags.filter((x) => tagIds.includes(x.id))
-      setMessage({ ...message, tags, tagIds })
-    } catch (err) {
-      toast.error(isApiError(err) ? err.message : t("message.tagsFailed"))
-    } finally {
-      setActing(false)
-    }
+  function toggleStar() {
+    if (!message) return
+    const isStarred = !message.isStarred
+    void act(
+      () =>
+        api(`/api/messages/${message.id}/star`, {
+          method: "POST",
+          body: JSON.stringify({ starred: isStarred }),
+        }),
+      () => {
+        invalidateMailboxMetadata()
+        patchMailboxReturnSnapshot(message.id, { isStarred })
+        setMessage((current) => current && { ...current, isStarred })
+      },
+      t("mailbox.starFailed")
+    )
   }
 
-  if (loading || !message) {
-    return <MessageDetailSkeleton label={t("message.loading")} />
+  function toggleTag(tag: Tag) {
+    if (!message) return
+    const tags = message.tags.some((item) => item.id === tag.id)
+      ? message.tags.filter((item) => item.id !== tag.id)
+      : [...message.tags, tag]
+    const tagIds = tags.map((item) => item.id)
+    void act(
+      () =>
+        api(`/api/messages/${message.id}/tags`, {
+          method: "PUT",
+          body: JSON.stringify({ tagIds }),
+        }),
+      () => {
+        patchMailboxReturnSnapshot(message.id, { tagIds })
+        setMessage((current) => current && { ...current, tags, tagIds })
+      },
+      t("message.tagsFailed")
+    )
   }
-
-  const backTo =
-    message.folder === "sent"
-      ? "/sent"
-      : message.folder === "trash"
-        ? "/trash"
-        : message.folder === "spam"
-          ? "/spam"
-          : message.folder === "draft"
-            ? "/draft"
-            : "/inbox"
-
-  const sanitized = message.htmlBody ? sanitize(message.htmlBody).trim() : ""
-  const html = sanitized || null
-
-  const isDeletedOrSpam =
-    message.folder === "trash" || message.folder === "spam"
-  const showReplyForward = !isDeletedOrSpam && message.folder !== "draft"
 
   return (
-    <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-      <PageHeader
-        leading={
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={t("app.back")}
-                  render={<Link to={backTo} />}
-                  nativeButton={false}
-                />
-              }
-            >
-              <Icon icon={ArrowLeft01Icon} />
-            </TooltipTrigger>
-            <TooltipContent side="bottom">{t("app.back")}</TooltipContent>
-          </Tooltip>
-        }
-        actions={
-          <div className="flex items-center gap-2">
-            {message.folder !== "draft" ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={acting}
-                onClick={() => void toggleStar()}
-              >
-                <Icon
-                  icon={StarIcon}
-                  data-icon="inline-start"
-                  strokeWidth={message.isStarred ? 2.25 : 1.5}
-                  className={message.isStarred ? "text-amber-500" : undefined}
-                />
-                {message.isStarred ? t("mailbox.unstar") : t("mailbox.star")}
-              </Button>
-            ) : null}
-            {isDeletedOrSpam ? (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={acting}
-                  onClick={() => void restore()}
-                >
-                  <Icon icon={UndoIcon} data-icon="inline-start" />
-                  {t("message.restore")}
-                </Button>
-                {message.folder === "spam" ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={acting}
-                    onClick={() => void trash()}
-                  >
-                    <Icon icon={Delete02Icon} data-icon="inline-start" />
-                    {t("message.trash")}
-                  </Button>
-                ) : null}
-              </>
-            ) : message.folder === "draft" ? (
-              <Button
-                type="button"
-                size="sm"
-                render={<Link to={`/compose?draft=${message.id}`} />}
-                nativeButton={false}
-              >
-                {t("message.editDraft")}
-              </Button>
-            ) : (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={acting}
-                  onClick={() => void markSpam()}
-                >
-                  <Icon icon={AlertDiamondIcon} data-icon="inline-start" />
-                  {t("message.markSpam")}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={acting}
-                  onClick={() => void trash()}
-                >
-                  <Icon icon={Delete02Icon} data-icon="inline-start" />
-                  {t("message.trash")}
-                </Button>
-              </>
-            )}
-          </div>
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+      <MessageToolbar
+        backTo={backTo}
+        source={source}
+        previousId={position > 0 ? source?.messageIds[position - 1] : undefined}
+        nextId={position >= 0 ? source?.messageIds[position + 1] : undefined}
+        message={message}
+        acting={acting}
+        onStar={toggleStar}
+        onSpam={() => move("spam")}
+        onTrash={() => move("trash")}
+        onArchive={() =>
+          move(message?.folder === "archive" ? "unarchive" : "archive")
         }
       />
 
       <ScrollArea className="min-h-0 flex-1">
-        <article className="flex w-full flex-col gap-5 px-4 py-6 pb-24 sm:px-8">
-          <div className="flex flex-col gap-3">
-            <h1 className="font-heading text-2xl font-medium tracking-tight sm:text-3xl">
-              {message.subject || t("app.noSubject")}
-            </h1>
-            <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 text-sm">
-              <p className="min-w-0 text-muted-foreground">
-                <span className="mr-1">{t("message.from")}</span>
-                <span className="text-foreground">{message.fromAddr}</span>
-                <span className="mx-2 text-border" aria-hidden>
-                  ·
-                </span>
-                <span className="mr-1">{t("message.to")}</span>
-                <span className="text-foreground">
-                  {message.toAddrs.join(", ")}
-                </span>
-              </p>
-              <time
-                key={i18n.language}
-                className="shrink-0 text-muted-foreground tabular-nums"
-                dateTime={new Date(message.createdAt).toISOString()}
-              >
-                {formatFullTime(message.createdAt)}
-              </time>
-            </div>
+        {loadStatus === "loading" ? (
+          <MessageDetailSkeleton label={t("message.loading")} />
+        ) : message ? (
+          <MessagePaper labelledBy="message-subject">
+            <MessageEnvelope
+              message={message}
+              acting={acting}
+              onToggleTag={toggleTag}
+            />
+            <div className="flex min-w-0 flex-col gap-5 pt-5 sm:gap-6 sm:pt-7">
+              {message.hasUnsupportedAttachments ? (
+                <div className="flex max-w-[72ch] items-start gap-2.5 rounded-lg bg-secondary px-3 py-2.5 text-sm leading-5 text-secondary-foreground">
+                  <Icon
+                    icon={Attachment01Icon}
+                    aria-hidden="true"
+                    className="mt-0.5 size-4 shrink-0"
+                  />
+                  <p>{t("message.attachmentBanner")}</p>
+                </div>
+              ) : null}
 
-            <div className="flex flex-wrap items-center gap-2">
-              {message.tags.map((tag) => (
-                <Badge
-                  key={tag.id}
-                  variant="secondary"
-                  style={
-                    tag.color &&
-                    /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(tag.color)
-                      ? { backgroundColor: tag.color, color: "#fff" }
-                      : undefined
-                  }
+              {rendered?.blockedImages ? (
+                <div className="flex max-w-[72ch] flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border px-3 py-2">
+                  <p className="text-sm text-muted-foreground">
+                    {t("message.imagesBlocked")}
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowRemoteImages(true)}
+                  >
+                    {t("message.loadImages")}
+                  </Button>
+                </div>
+              ) : null}
+
+              {rendered?.content ? (
+                <div
+                  dir="auto"
+                  className="post-message-body flow-root overflow-x-auto text-base/7 sm:text-sm/7 [&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2"
+                  dangerouslySetInnerHTML={{ __html: rendered.content }}
+                />
+              ) : (
+                <p
+                  dir="auto"
+                  data-format="plain"
+                  className="post-message-body text-base/7 whitespace-pre-wrap sm:text-sm/7"
                 >
-                  {tag.name}
-                </Badge>
-              ))}
-              {message.folder !== "draft" ? (
-                <Popover open={tagsOpen} onOpenChange={setTagsOpen}>
-                  <PopoverTrigger
-                    render={
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="xs"
-                        disabled={acting}
-                      />
-                    }
-                  >
-                    {t("message.editTags")}
-                  </PopoverTrigger>
-                  <PopoverContent
-                    align="start"
-                    className="w-auto max-w-xs min-w-48 gap-2 p-3"
-                  >
-                    {allTags.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">
-                        {t("message.noTagsYet")}{" "}
-                        <Link
-                          to="/settings"
-                          className="underline"
-                          onClick={() => setTagsOpen(false)}
-                        >
-                          {t("nav.settings")}
-                        </Link>
-                      </p>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        {allTags.map((tag) => {
-                          const active = message.tags.some(
-                            (x) => x.id === tag.id
-                          )
-                          return (
-                            <Button
-                              key={tag.id}
-                              type="button"
-                              size="xs"
-                              variant={active ? "default" : "outline"}
-                              disabled={acting}
-                              onClick={() => void toggleTag(tag.id)}
-                            >
-                              {tag.name}
-                            </Button>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </PopoverContent>
-                </Popover>
+                  {message.textBody.trim()
+                    ? message.textBody
+                    : t("app.emptyBody")}
+                </p>
+              )}
+            </div>
+          </MessagePaper>
+        ) : (
+          <MessagePaper labelledBy="message-error">
+            <div className="flex flex-col items-start gap-3 sm:py-3">
+              <span className="grid size-10 place-items-center rounded-lg bg-muted text-muted-foreground">
+                <Icon icon={Mail01Icon} aria-hidden="true" className="size-5" />
+              </span>
+              <div role="alert" className="space-y-1">
+                <h1
+                  id="message-error"
+                  className="text-xl font-semibold tracking-tight"
+                >
+                  {t(
+                    loadStatus === "notFound"
+                      ? "message.notFound"
+                      : "message.loadFailed"
+                  )}
+                </h1>
+                <p className="text-sm text-muted-foreground">
+                  {t(
+                    loadStatus === "notFound"
+                      ? "message.notFoundHint"
+                      : "message.loadFailedHint"
+                  )}
+                </p>
+              </div>
+              {loadStatus === "failed" ? (
+                <Button
+                  size="lg"
+                  onClick={() => {
+                    setLoadStatus("loading")
+                    setAttempt((value) => value + 1)
+                  }}
+                >
+                  {t("mailbox.retry")}
+                </Button>
               ) : null}
             </div>
-          </div>
-
-          {message.hasUnsupportedAttachments ? (
-            <div
-              role="status"
-              className="rounded-2xl bg-secondary px-4 py-3 text-sm text-secondary-foreground"
-            >
-              {t("message.attachmentBanner")}
-            </div>
-          ) : null}
-
-          <Separator />
-
-          {html ? (
-            <div
-              className="prose prose-sm max-w-none text-foreground [&_a]:text-primary [&_a]:underline"
-              dangerouslySetInnerHTML={{ __html: html }}
-            />
-          ) : (
-            <pre className="font-sans text-sm leading-relaxed whitespace-pre-wrap">
-              {message.textBody || t("app.emptyBody")}
-            </pre>
-          )}
-        </article>
+          </MessagePaper>
+        )}
       </ScrollArea>
 
-      {showReplyForward ? (
-        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-20 flex justify-start px-4 pb-4 sm:px-6 md:left-56">
-          <div className="pointer-events-auto flex items-center gap-1.5 rounded-2xl border border-border bg-background/95 p-1.5 shadow-lg backdrop-blur-sm">
-            {message.direction === "inbound" ? (
-              <Button
-                type="button"
-                size="sm"
-                render={<Link to={`/compose?reply=${message.id}`} />}
-                nativeButton={false}
-              >
-                <Icon icon={ArrowTurnBackwardIcon} data-icon="inline-start" />
-                {t("message.reply")}
-              </Button>
-            ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              render={<Link to={`/compose?forward=${message.id}`} />}
-              nativeButton={false}
-            >
-              <Icon icon={ArrowTurnForwardIcon} data-icon="inline-start" />
-              {t("message.forward")}
-            </Button>
-          </div>
-        </div>
+      {message ? (
+        <MessageFooter message={message} acting={acting} onRestore={restore} />
       ) : null}
     </div>
   )

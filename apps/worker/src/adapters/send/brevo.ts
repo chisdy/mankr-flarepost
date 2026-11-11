@@ -20,11 +20,15 @@ export function createBrevoSendAdapter(apiKey: string): SendAdapter {
         textContent: input.text,
       }
       if (input.html !== undefined) payload.htmlContent = input.html
-      if (input.replyTo !== undefined) payload.replyTo = { email: input.replyTo }
+      if (input.replyTo !== undefined)
+        payload.replyTo = { email: input.replyTo }
 
       try {
         const res = await fetch('https://api.brevo.com/v3/smtp/email', {
           method: 'POST',
+          ...(input.trackOutcome
+            ? { signal: AbortSignal.timeout(30_000) }
+            : {}),
           headers: {
             'api-key': key,
             'Content-Type': 'application/json',
@@ -37,13 +41,28 @@ export function createBrevoSendAdapter(apiKey: string): SendAdapter {
           return { error: 'invalid_address' }
         }
         if (!res.ok) {
-          return { error: 'provider_error' }
+          return {
+            error: 'provider_error',
+            ...(input.trackOutcome
+              ? {
+                  outcome:
+                    res.status < 500
+                      ? ('rejected' as const)
+                      : ('unknown' as const),
+                }
+              : {}),
+          }
         }
 
-        const data = (await res.json().catch(() => ({}))) as { messageId?: string }
+        const data = (await res.json().catch(() => ({}))) as {
+          messageId?: string
+        }
         return { id: data.messageId }
       } catch {
-        return { error: 'provider_error' }
+        return {
+          error: 'provider_error',
+          ...(input.trackOutcome ? { outcome: 'unknown' as const } : {}),
+        }
       }
     },
   }

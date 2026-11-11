@@ -176,20 +176,21 @@ export function SettingsView() {
     <div className="flex h-full min-h-0 flex-1 flex-col">
       <PageHeader title={t("settings.title")} />
 
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <aside className="shrink-0 px-4 py-2 md:w-56 md:px-3 md:py-4">
-          <nav className="flex flex-row gap-1 overflow-x-auto md:flex-col md:overflow-x-visible">
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+        <aside className="shrink-0 bg-background/45 px-3 py-2 lg:w-52 lg:px-3 lg:py-4">
+          <nav className="flex flex-row gap-1 overflow-x-auto lg:flex-col lg:overflow-x-visible">
             {tabs.map((tab) => {
               const isActive = activeTab === tab.id
               return (
                 <button
                   key={tab.id}
                   type="button"
+                  aria-pressed={isActive}
                   onClick={() => selectTab(tab.id)}
                   className={cn(
-                    "flex cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors",
+                    "flex min-h-10 cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors",
                     isActive
-                      ? "bg-accent text-accent-foreground shadow-2xs"
+                      ? "bg-accent text-accent-foreground"
                       : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
                   )}
                 >
@@ -259,7 +260,7 @@ export function SettingsView() {
                         </Field>
                       </FieldGroup>
                     </CardContent>
-                    <CardFooter className="border-t border-border/60 pt-4">
+                    <CardFooter className="pt-4">
                       <Button type="submit" disabled={saving}>
                         {saving ? t("auth.saving") : t("settings.save")}
                       </Button>
@@ -348,7 +349,9 @@ export function SettingsView() {
 
             {activeTab === "tags" && <TagsFiltersSettings aliases={aliases} />}
 
-            {activeTab === "apikeys" && <ApiKeysSettings aliases={aliases} />}
+            {activeTab === "apikeys" && (
+              <ApiKeysSettings aliases={aliases} onAliasesChange={setAliases} />
+            )}
           </div>
         </ScrollArea>
       </div>

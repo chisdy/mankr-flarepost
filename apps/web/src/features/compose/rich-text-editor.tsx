@@ -9,6 +9,7 @@ import {
   TextItalicIcon,
 } from "@hugeicons/core-free-icons"
 
+import { useEffect } from "react"
 import { useTranslation } from "react-i18next"
 
 import { Icon } from "@/components/icon"
@@ -21,6 +22,7 @@ type RichTextEditorProps = {
   value: string
   onChange: (html: string) => void
   invalid?: boolean
+  readOnly?: boolean
   className?: string
 }
 
@@ -29,6 +31,7 @@ export function RichTextEditor({
   value,
   onChange,
   invalid,
+  readOnly = false,
   className,
 }: RichTextEditorProps) {
   const { t } = useTranslation()
@@ -47,11 +50,12 @@ export function RichTextEditor({
       }),
     ],
     content: value || "",
+    editable: !readOnly,
     editorProps: {
       attributes: {
         id: id ?? "compose-editor",
         class:
-          "compose-editor min-h-40 px-3 py-2 text-sm leading-relaxed focus:outline-none",
+          "compose-editor min-h-52 px-4 py-3 text-sm leading-relaxed focus:outline-none",
         "aria-invalid": invalid ? "true" : "false",
       },
     },
@@ -59,6 +63,10 @@ export function RichTextEditor({
       onChange(ed.getHTML())
     },
   })
+
+  useEffect(() => {
+    editor?.setEditable(!readOnly, false)
+  }, [editor, readOnly])
 
   if (!editor) return null
 
@@ -83,16 +91,16 @@ export function RichTextEditor({
   return (
     <div
       className={cn(
-        "rounded-lg border border-input bg-transparent shadow-xs transition-[color,box-shadow]",
+        "rounded-lg border border-input bg-card transition-[color,box-shadow] focus-within:border-ring",
         invalid && "border-destructive ring-[3px] ring-destructive/20",
         className
       )}
     >
-      <div className="flex flex-wrap gap-0.5 border-b border-border px-1 py-1">
+      <div className="flex flex-wrap gap-1 rounded-t-lg bg-muted/65 px-2 py-1.5">
         <Button
           type="button"
           variant="ghost"
-          size="icon-sm"
+          size="icon"
           aria-label={t("compose.bold")}
           aria-pressed={editor.isActive("bold")}
           onClick={() => editor.chain().focus().toggleBold().run()}
@@ -102,7 +110,7 @@ export function RichTextEditor({
         <Button
           type="button"
           variant="ghost"
-          size="icon-sm"
+          size="icon"
           aria-label={t("compose.italic")}
           aria-pressed={editor.isActive("italic")}
           onClick={() => editor.chain().focus().toggleItalic().run()}
@@ -112,7 +120,7 @@ export function RichTextEditor({
         <Button
           type="button"
           variant="ghost"
-          size="icon-sm"
+          size="icon"
           aria-label={t("compose.bulletList")}
           aria-pressed={editor.isActive("bulletList")}
           onClick={() => editor.chain().focus().toggleBulletList().run()}
@@ -122,7 +130,7 @@ export function RichTextEditor({
         <Button
           type="button"
           variant="ghost"
-          size="icon-sm"
+          size="icon"
           aria-label={t("compose.orderedList")}
           aria-pressed={editor.isActive("orderedList")}
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
@@ -132,7 +140,7 @@ export function RichTextEditor({
         <Button
           type="button"
           variant="ghost"
-          size="icon-sm"
+          size="icon"
           aria-label={t("compose.link")}
           aria-pressed={editor.isActive("link")}
           onClick={setLink}

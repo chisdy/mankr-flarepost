@@ -7,7 +7,6 @@ import { toast } from "sonner"
 import { z } from "zod"
 
 import { useAuth } from "@/components/auth-gate"
-import { LanguageSwitcher } from "@/components/language-switcher"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -15,7 +14,6 @@ import {
   CardDescription,
   CardFooter,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card"
 import {
   Field,
@@ -27,6 +25,8 @@ import {
 import { Input } from "@/components/ui/input"
 import { api, isApiError } from "@/lib/api"
 import type { AuthUser, SetupStatus } from "@/lib/types"
+
+import { AuthLayout } from "./auth-layout"
 
 type SetupValues = {
   username: string
@@ -108,13 +108,10 @@ export function SetupForm() {
   }
 
   return (
-    <div className="relative flex min-h-svh items-center justify-center p-6">
-      <div className="absolute top-4 right-4">
-        <LanguageSwitcher className="w-36" />
-      </div>
-      <Card className="w-full max-w-sm">
+    <AuthLayout>
+      <Card className="w-full max-w-md border-0 bg-transparent py-0 [--card-spacing:0rem] gap-7">
         <CardHeader>
-          <CardTitle>{t("auth.setupTitle")}</CardTitle>
+          <h1 className="text-3xl font-semibold tracking-tight">{t("auth.setupTitle")}</h1>
           <CardDescription>{t("auth.setupDescription")}</CardDescription>
         </CardHeader>
         <CardContent>
@@ -155,7 +152,7 @@ export function SetupForm() {
           </form>
         </CardContent>
         <CardFooter className="flex flex-col items-stretch gap-3">
-          <Button type="submit" form="setup-form" disabled={submitting}>
+          <Button type="submit" form="setup-form" size="lg" disabled={submitting}>
             {submitting ? t("auth.creating") : t("auth.createAdmin")}
           </Button>
           <p className="text-center text-sm text-muted-foreground">
@@ -166,6 +163,6 @@ export function SetupForm() {
           </p>
         </CardFooter>
       </Card>
-    </div>
+    </AuthLayout>
   )
 }

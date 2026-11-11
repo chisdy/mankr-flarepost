@@ -13,6 +13,7 @@ import { registerTagRoutes } from '../tags/routes'
 import { registerUsageRoutes } from '../usage/routes'
 import { jsonError } from './errors'
 import { requireSession, type AppVariables } from './middleware'
+import { registerIntegrationRoutes } from '../integrations/routes'
 
 export function createApp() {
   const app = new Hono<{ Bindings: Env; Variables: AppVariables }>()
@@ -24,6 +25,7 @@ export function createApp() {
 
   // Authenticated API routes
   app.use('/api/*', requireSession)
+  registerIntegrationRoutes(app)
   registerAliasRoutes(app)
   registerApiKeyRoutes(app)
   registerTagRoutes(app)

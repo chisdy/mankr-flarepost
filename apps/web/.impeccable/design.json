@@ -1,0 +1,531 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-03T12:28:21+00:00",
+  "title": "Design System: Mankr Flarepost",
+  "extensions": {
+    "colorMeta": {
+      "background": {
+        "role": "neutral",
+        "displayName": "Pale Ground",
+        "tonalRamp": [
+          "oklch(15% 0.0017 247.8)",
+          "oklch(26% 0.0017 247.8)",
+          "oklch(38% 0.0017 247.8)",
+          "oklch(49% 0.0017 247.8)",
+          "oklch(61% 0.0017 247.8)",
+          "oklch(72% 0.0017 247.8)",
+          "oklch(84% 0.0017 247.8)",
+          "oklch(95% 0.0017 247.8)"
+        ]
+      },
+      "foreground": {
+        "role": "neutral",
+        "displayName": "Graphite Ink",
+        "tonalRamp": [
+          "oklch(15% 0.0102 260.7)",
+          "oklch(26% 0.0102 260.7)",
+          "oklch(38% 0.0102 260.7)",
+          "oklch(49% 0.0102 260.7)",
+          "oklch(61% 0.0102 260.7)",
+          "oklch(72% 0.0102 260.7)",
+          "oklch(84% 0.0102 260.7)",
+          "oklch(95% 0.0102 260.7)"
+        ]
+      },
+      "card": {
+        "role": "neutral",
+        "displayName": "Card Paper",
+        "tonalRamp": [
+          "oklch(15% 0.0000 0.0)",
+          "oklch(26% 0.0000 0.0)",
+          "oklch(38% 0.0000 0.0)",
+          "oklch(49% 0.0000 0.0)",
+          "oklch(61% 0.0000 0.0)",
+          "oklch(72% 0.0000 0.0)",
+          "oklch(84% 0.0000 0.0)",
+          "oklch(95% 0.0000 0.0)"
+        ]
+      },
+      "popover": {
+        "role": "neutral",
+        "displayName": "Overlay Paper",
+        "tonalRamp": [
+          "oklch(15% 0.0000 0.0)",
+          "oklch(26% 0.0000 0.0)",
+          "oklch(38% 0.0000 0.0)",
+          "oklch(49% 0.0000 0.0)",
+          "oklch(61% 0.0000 0.0)",
+          "oklch(72% 0.0000 0.0)",
+          "oklch(84% 0.0000 0.0)",
+          "oklch(95% 0.0000 0.0)"
+        ]
+      },
+      "primary": {
+        "role": "primary",
+        "displayName": "Fold Violet",
+        "tonalRamp": [
+          "oklch(15% 0.0817 296.3)",
+          "oklch(26% 0.0959 296.3)",
+          "oklch(38% 0.0959 296.3)",
+          "oklch(49% 0.0959 296.3)",
+          "oklch(61% 0.0959 296.3)",
+          "oklch(72% 0.0959 296.3)",
+          "oklch(84% 0.0899 296.3)",
+          "oklch(95% 0.0268 296.3)"
+        ]
+      },
+      "primary-foreground": {
+        "role": "neutral",
+        "displayName": "Action White",
+        "tonalRamp": [
+          "oklch(15% 0.0000 0.0)",
+          "oklch(26% 0.0000 0.0)",
+          "oklch(38% 0.0000 0.0)",
+          "oklch(49% 0.0000 0.0)",
+          "oklch(61% 0.0000 0.0)",
+          "oklch(72% 0.0000 0.0)",
+          "oklch(84% 0.0000 0.0)",
+          "oklch(95% 0.0000 0.0)"
+        ]
+      },
+      "secondary": {
+        "role": "neutral",
+        "displayName": "Soft Lavender",
+        "tonalRamp": [
+          "oklch(15% 0.0041 236.5)",
+          "oklch(26% 0.0041 236.5)",
+          "oklch(38% 0.0041 236.5)",
+          "oklch(49% 0.0041 236.5)",
+          "oklch(61% 0.0041 236.5)",
+          "oklch(72% 0.0041 236.5)",
+          "oklch(84% 0.0041 236.5)",
+          "oklch(95% 0.0041 236.5)"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Muted Wash",
+        "tonalRamp": [
+          "oklch(15% 0.0034 247.9)",
+          "oklch(26% 0.0034 247.9)",
+          "oklch(38% 0.0034 247.9)",
+          "oklch(49% 0.0034 247.9)",
+          "oklch(61% 0.0034 247.9)",
+          "oklch(72% 0.0034 247.9)",
+          "oklch(84% 0.0034 247.9)",
+          "oklch(95% 0.0034 247.9)"
+        ]
+      },
+      "accent": {
+        "role": "neutral",
+        "displayName": "Gray Wash",
+        "tonalRamp": [
+          "oklch(15% 0.0062 255.5)",
+          "oklch(26% 0.0062 255.5)",
+          "oklch(38% 0.0062 255.5)",
+          "oklch(49% 0.0062 255.5)",
+          "oklch(61% 0.0062 255.5)",
+          "oklch(72% 0.0062 255.5)",
+          "oklch(84% 0.0062 255.5)",
+          "oklch(95% 0.0062 255.5)"
+        ]
+      },
+      "accent-foreground": {
+        "role": "neutral",
+        "displayName": "Accent Ink",
+        "tonalRamp": [
+          "oklch(15% 0.0102 260.7)",
+          "oklch(26% 0.0102 260.7)",
+          "oklch(38% 0.0102 260.7)",
+          "oklch(49% 0.0102 260.7)",
+          "oklch(61% 0.0102 260.7)",
+          "oklch(72% 0.0102 260.7)",
+          "oklch(84% 0.0102 260.7)",
+          "oklch(95% 0.0102 260.7)"
+        ]
+      },
+      "muted-foreground": {
+        "role": "neutral",
+        "displayName": "Quiet Ink",
+        "tonalRamp": [
+          "oklch(15% 0.0169 254.7)",
+          "oklch(26% 0.0169 254.7)",
+          "oklch(38% 0.0169 254.7)",
+          "oklch(49% 0.0169 254.7)",
+          "oklch(61% 0.0169 254.7)",
+          "oklch(72% 0.0169 254.7)",
+          "oklch(84% 0.0169 254.7)",
+          "oklch(95% 0.0169 254.7)"
+        ]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Paper Rule",
+        "tonalRamp": [
+          "oklch(15% 0.0063 255.5)",
+          "oklch(26% 0.0063 255.5)",
+          "oklch(38% 0.0063 255.5)",
+          "oklch(49% 0.0063 255.5)",
+          "oklch(61% 0.0063 255.5)",
+          "oklch(72% 0.0063 255.5)",
+          "oklch(84% 0.0063 255.5)",
+          "oklch(95% 0.0063 255.5)"
+        ]
+      },
+      "input": {
+        "role": "neutral",
+        "displayName": "Field Rule",
+        "tonalRamp": [
+          "oklch(15% 0.0189 256.3)",
+          "oklch(26% 0.0189 256.3)",
+          "oklch(38% 0.0189 256.3)",
+          "oklch(49% 0.0189 256.3)",
+          "oklch(61% 0.0189 256.3)",
+          "oklch(72% 0.0189 256.3)",
+          "oklch(84% 0.0189 256.3)",
+          "oklch(95% 0.0189 256.3)"
+        ]
+      },
+      "ring": {
+        "role": "primary",
+        "displayName": "Focus Lavender",
+        "tonalRamp": [
+          "oklch(15% 0.1490 294.4)",
+          "oklch(26% 0.1490 294.4)",
+          "oklch(38% 0.1490 294.4)",
+          "oklch(49% 0.1490 294.4)",
+          "oklch(61% 0.1490 294.4)",
+          "oklch(72% 0.1490 294.4)",
+          "oklch(84% 0.1490 294.4)",
+          "oklch(95% 0.1490 294.4)"
+        ]
+      },
+      "main": {
+        "role": "neutral",
+        "displayName": "Reading Paper",
+        "tonalRamp": [
+          "oklch(15% 0.0017 247.8)",
+          "oklch(26% 0.0017 247.8)",
+          "oklch(38% 0.0017 247.8)",
+          "oklch(49% 0.0017 247.8)",
+          "oklch(61% 0.0017 247.8)",
+          "oklch(72% 0.0017 247.8)",
+          "oklch(84% 0.0017 247.8)",
+          "oklch(95% 0.0017 247.8)"
+        ]
+      },
+      "destructive": {
+        "role": "neutral",
+        "displayName": "Alert Rose",
+        "tonalRamp": [
+          "oklch(15% 0.1645 12.8)",
+          "oklch(26% 0.1645 12.8)",
+          "oklch(38% 0.1645 12.8)",
+          "oklch(49% 0.1645 12.8)",
+          "oklch(61% 0.1645 12.8)",
+          "oklch(72% 0.1645 12.8)",
+          "oklch(84% 0.1645 12.8)",
+          "oklch(95% 0.1645 12.8)"
+        ]
+      },
+      "rail-background": {
+        "role": "neutral",
+        "displayName": "Fold Charcoal",
+        "tonalRamp": [
+          "oklch(15% 0.0166 300.6)",
+          "oklch(26% 0.0166 300.6)",
+          "oklch(38% 0.0166 300.6)",
+          "oklch(49% 0.0166 300.6)",
+          "oklch(61% 0.0166 300.6)",
+          "oklch(72% 0.0166 300.6)",
+          "oklch(84% 0.0166 300.6)",
+          "oklch(95% 0.0166 300.6)"
+        ]
+      },
+      "rail-foreground": {
+        "role": "neutral",
+        "displayName": "Rail Ink",
+        "tonalRamp": [
+          "oklch(15% 0.0056 308.4)",
+          "oklch(26% 0.0056 308.4)",
+          "oklch(38% 0.0056 308.4)",
+          "oklch(49% 0.0056 308.4)",
+          "oklch(61% 0.0056 308.4)",
+          "oklch(72% 0.0056 308.4)",
+          "oklch(84% 0.0056 308.4)",
+          "oklch(95% 0.0056 308.4)"
+        ]
+      },
+      "rail-primary": {
+        "role": "primary",
+        "displayName": "Rail Lavender",
+        "tonalRamp": [
+          "oklch(15% 0.0328 303.4)",
+          "oklch(26% 0.0328 303.4)",
+          "oklch(38% 0.0328 303.4)",
+          "oklch(49% 0.0328 303.4)",
+          "oklch(61% 0.0328 303.4)",
+          "oklch(72% 0.0328 303.4)",
+          "oklch(84% 0.0328 303.4)",
+          "oklch(95% 0.0290 303.4)"
+        ]
+      },
+      "rail-primary-foreground": {
+        "role": "neutral",
+        "displayName": "Rail Action Ink",
+        "tonalRamp": [
+          "oklch(15% 0.0258 301.2)",
+          "oklch(26% 0.0258 301.2)",
+          "oklch(38% 0.0258 301.2)",
+          "oklch(49% 0.0258 301.2)",
+          "oklch(61% 0.0258 301.2)",
+          "oklch(72% 0.0258 301.2)",
+          "oklch(84% 0.0258 301.2)",
+          "oklch(95% 0.0258 301.2)"
+        ]
+      },
+      "rail-muted": {
+        "role": "neutral",
+        "displayName": "Rail Muted Wash",
+        "tonalRamp": [
+          "oklch(15% 0.0143 302.7)",
+          "oklch(26% 0.0143 302.7)",
+          "oklch(38% 0.0143 302.7)",
+          "oklch(49% 0.0143 302.7)",
+          "oklch(61% 0.0143 302.7)",
+          "oklch(72% 0.0143 302.7)",
+          "oklch(84% 0.0143 302.7)",
+          "oklch(95% 0.0143 302.7)"
+        ]
+      },
+      "rail-muted-foreground": {
+        "role": "neutral",
+        "displayName": "Rail Quiet Ink",
+        "tonalRamp": [
+          "oklch(15% 0.0188 303.4)",
+          "oklch(26% 0.0188 303.4)",
+          "oklch(38% 0.0188 303.4)",
+          "oklch(49% 0.0188 303.4)",
+          "oklch(61% 0.0188 303.4)",
+          "oklch(72% 0.0188 303.4)",
+          "oklch(84% 0.0188 303.4)",
+          "oklch(95% 0.0188 303.4)"
+        ]
+      },
+      "rail-accent": {
+        "role": "neutral",
+        "displayName": "Rail Selected Wash",
+        "tonalRamp": [
+          "oklch(15% 0.0191 302.0)",
+          "oklch(26% 0.0191 302.0)",
+          "oklch(38% 0.0191 302.0)",
+          "oklch(49% 0.0191 302.0)",
+          "oklch(61% 0.0191 302.0)",
+          "oklch(72% 0.0191 302.0)",
+          "oklch(84% 0.0191 302.0)",
+          "oklch(95% 0.0191 302.0)"
+        ]
+      },
+      "rail-accent-foreground": {
+        "role": "neutral",
+        "displayName": "Rail Selected Ink",
+        "tonalRamp": [
+          "oklch(15% 0.0056 308.4)",
+          "oklch(26% 0.0056 308.4)",
+          "oklch(38% 0.0056 308.4)",
+          "oklch(49% 0.0056 308.4)",
+          "oklch(61% 0.0056 308.4)",
+          "oklch(72% 0.0056 308.4)",
+          "oklch(84% 0.0056 308.4)",
+          "oklch(95% 0.0056 308.4)"
+        ]
+      },
+      "rail-border": {
+        "role": "neutral",
+        "displayName": "Rail Rule",
+        "tonalRamp": [
+          "oklch(15% 0.0196 301.9)",
+          "oklch(26% 0.0196 301.9)",
+          "oklch(38% 0.0196 301.9)",
+          "oklch(49% 0.0196 301.9)",
+          "oklch(61% 0.0196 301.9)",
+          "oklch(72% 0.0196 301.9)",
+          "oklch(84% 0.0196 301.9)",
+          "oklch(95% 0.0196 301.9)"
+        ]
+      },
+      "rail-ring": {
+        "role": "primary",
+        "displayName": "Rail Focus Lavender",
+        "tonalRamp": [
+          "oklch(15% 0.0328 303.4)",
+          "oklch(26% 0.0328 303.4)",
+          "oklch(38% 0.0328 303.4)",
+          "oklch(49% 0.0328 303.4)",
+          "oklch(61% 0.0328 303.4)",
+          "oklch(72% 0.0328 303.4)",
+          "oklch(84% 0.0328 303.4)",
+          "oklch(95% 0.0290 303.4)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Message subject; expands to 1.875rem at 40rem."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Card title and application wordmark."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Navigation, subjects, form labels, and short interface copy."
+      },
+      "reading": {
+        "displayName": "Reading",
+        "purpose": "Message copy, with more space between lines."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Tags and compact metadata."
+      },
+      "control": {
+        "displayName": "Control",
+        "purpose": "Default button text."
+      }
+    },
+    "shadows": [
+      {
+        "name": "inset-state-edge",
+        "value": "inset 1px 0 var(--ring)",
+        "purpose": "Marks a current folder or unread row."
+      }
+    ],
+    "motion": [
+      {
+        "name": "row-color",
+        "value": "background-color 160ms ease-out",
+        "purpose": "Changes the wash on mailbox row hover and focus."
+      },
+      {
+        "name": "field-focus",
+        "value": "color 200ms, box-shadow 200ms",
+        "purpose": "Transitions the search input treatment."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "40rem"
+      },
+      {
+        "name": "md",
+        "value": "48rem"
+      },
+      {
+        "name": "lg",
+        "value": "64rem"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Compose action.",
+      "html": "<button type=\"button\" class=\"ds-button-primary\">Compose</button>",
+      "css": ".ds-button-primary{display:inline-flex;align-items:center;justify-content:center;min-height:2.25rem;padding:0 .75rem;border:1px solid transparent;border-radius:var(--radius,.625rem);font:500 .875rem/1.25rem \"Inter Variable\",sans-serif;cursor:pointer;transition:color 150ms,background-color 150ms;background:var(--primary);color:var(--primary-foreground);}.ds-button-primary:hover{background:color-mix(in oklab,var(--primary) 80%,transparent);}.ds-button-primary:focus-visible{outline:2px solid var(--ring);outline-offset:2px;}.ds-button-primary:active{transform:translateY(1px);}"
+    },
+    {
+      "name": "Outline button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Load more action.",
+      "html": "<button type=\"button\" class=\"ds-button-outline\">Load more</button>",
+      "css": ".ds-button-outline{display:inline-flex;align-items:center;justify-content:center;min-height:2.25rem;padding:0 .75rem;border:1px solid transparent;border-radius:var(--radius,.625rem);font:500 .875rem/1.25rem \"Inter Variable\",sans-serif;cursor:pointer;transition:color 150ms,background-color 150ms;background:var(--background);color:var(--foreground);border-color:var(--border);}.ds-button-outline:hover{background:var(--muted);}.ds-button-outline:focus-visible{outline:2px solid var(--ring);outline-offset:2px;}.ds-button-outline:active{transform:translateY(1px);}"
+    },
+    {
+      "name": "Ghost button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Back action.",
+      "html": "<button type=\"button\" class=\"ds-button-ghost\">Back</button>",
+      "css": ".ds-button-ghost{display:inline-flex;align-items:center;justify-content:center;min-height:2.25rem;padding:0 .75rem;border:1px solid transparent;border-radius:var(--radius,.625rem);font:500 .875rem/1.25rem \"Inter Variable\",sans-serif;cursor:pointer;transition:color 150ms,background-color 150ms;background:transparent;color:var(--foreground);}.ds-button-ghost:hover{background:var(--muted);}.ds-button-ghost:focus-visible{outline:2px solid var(--ring);outline-offset:2px;}.ds-button-ghost:active{transform:translateY(1px);}"
+    },
+    {
+      "name": "Search field",
+      "kind": "input",
+      "refersTo": "input-search",
+      "description": "Paper field with a clear boundary.",
+      "html": "<input class=\"ds-search\" type=\"search\" aria-label=\"Search mail\" placeholder=\"Search mail\">",
+      "css": ".ds-search{min-height:2.5rem;max-width:100%;padding:.25rem .75rem;background:var(--card);color:var(--foreground);border:1px solid var(--input);border-radius:var(--radius,.625rem);font:400 1rem/1.5rem \"Inter Variable\",sans-serif;transition:color 200ms,box-shadow 200ms}.ds-search::placeholder{color:var(--muted-foreground)}.ds-search:focus-visible{outline:0;border-color:var(--ring);box-shadow:0 0 0 3px color-mix(in oklab,var(--ring) 30%,transparent)}@media(min-width:48rem){.ds-search{font-size:.875rem}}"
+    },
+    {
+      "name": "Current folder",
+      "kind": "nav",
+      "refersTo": "folder-current",
+      "description": "Selected folder on the charcoal fold.",
+      "html": "<nav class=\"ds-rail\" aria-label=\"Folders\"><a class=\"ds-folder\" href=\"#inbox\" aria-current=\"page\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"16\" height=\"16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linejoin=\"round\"><path d=\"M4 6h16v12H4zM4 7l8 6 8-6\"/></svg> Inbox</a><a class=\"ds-folder\" href=\"#sent\">Sent</a></nav>",
+      "css": ".ds-rail{--background:var(--rail-background,#2e2b34);--foreground:var(--rail-foreground,#f4f2f6);--primary:var(--rail-primary,#d5cce3);--primary-foreground:var(--rail-primary-foreground,#302b39);--muted:var(--rail-muted,#3a373f);--muted-foreground:var(--rail-muted-foreground,#c3becb);--accent:var(--rail-accent,#45414c);--accent-foreground:var(--rail-accent-foreground,#f4f2f6);--border:var(--rail-border,#3b3742);--ring:var(--rail-ring,#d5cce3);background:var(--background);padding:1rem;display:grid;gap:.125rem}.ds-folder{min-height:2.5rem;display:flex;align-items:center;gap:.75rem;padding:.5rem .75rem;border-radius:var(--radius,.625rem);font:400 .875rem/1.25rem \"Inter Variable\",sans-serif;color:var(--muted-foreground);text-decoration:none;transition:color 150ms,background-color 150ms}.ds-folder:hover{background:var(--accent);color:var(--foreground)}.ds-folder[aria-current=\"page\"]{background:var(--accent);color:var(--accent-foreground);font-weight:600;box-shadow:inset 1px 0 var(--ring)}.ds-folder:focus-visible{outline:2px solid var(--ring);outline-offset:2px;}"
+    },
+    {
+      "name": "Secondary tag",
+      "kind": "chip",
+      "refersTo": "tag-secondary",
+      "description": "A quiet label on the reading sheet.",
+      "html": "<span class=\"ds-tag\">Receipts</span>",
+      "css": ".ds-tag{display:inline-flex;align-items:center;min-height:1.25rem;padding:.125rem .5rem;border:1px solid transparent;border-radius:calc(var(--radius,.625rem)*1.8);background:var(--secondary);color:var(--secondary-foreground);font:500 .75rem/1rem \"Inter Variable\",sans-serif}"
+    },
+    {
+      "name": "Paper card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "A group of related settings.",
+      "html": "<article class=\"ds-card\"><strong>Sender aliases</strong><p>Manage the addresses on your domain.</p></article>",
+      "css": ".ds-card{padding:1.25rem;border-radius:24px;background:var(--card);color:var(--card-foreground);font:400 .875rem/1.25rem \"Inter Variable\",sans-serif}.ds-card strong{font-size:1rem;font-weight:600}.ds-card p{margin:.375rem 0 0;color:var(--muted-foreground)}"
+    },
+    {
+      "name": "Unread mail row",
+      "kind": "custom",
+      "refersTo": "mail-unread",
+      "description": "A slim edge and stronger type mark new mail.",
+      "html": "<div class=\"ds-mail\"><a class=\"ds-mail-link\" href=\"#message\" aria-label=\"Unread: Ada Chen, Domain renewal\"><span>Ada Chen</span><time datetime=\"09:41\">09:41</time><span class=\"ds-subject\">Domain renewal</span></a></div>",
+      "css": ".ds-mail{border-bottom:1px solid var(--border);padding:0 .75rem;background:color-mix(in srgb,var(--accent) 42%,var(--main));transition:background-color 160ms ease-out}.ds-mail:is(:hover,:focus-within){background:var(--accent)}.ds-mail-link{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.25rem .75rem;align-items:baseline;padding:.75rem 0;color:var(--foreground);text-decoration:none;font:600 .875rem/1.25rem \"Inter Variable\",sans-serif}.ds-mail-link:focus-visible{outline:2px solid var(--ring);outline-offset:2px;}.ds-mail time{color:var(--muted-foreground);text-align:right;font-size:.75rem;font-weight:400;font-variant-numeric:tabular-nums}.ds-subject{grid-column:1/-1;grid-row:2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}@media(min-width:40rem){.ds-mail{padding:0 1.5rem}.ds-mail-link{grid-template-columns:minmax(8rem,.7fr) minmax(0,1.6fr) 6.5rem;column-gap:1.25rem}.ds-subject{grid-column:2;grid-row:1}.ds-mail time{grid-column:3;grid-row:1}}"
+    }
+  ],
+  "narrative": {
+    "northStar": "折页信笺",
+    "overview": "Flarepost is a working sheet for mail. A separate navigation plane frames the reading surface, and tonal surfaces and spacing make a busy list easy to scan. The existing Flarepost fold mark from `public/brand/` anchors the identity.\n\nLight mode pairs a charcoal navigation plane with a trace of violet and a near-white workspace. In the workspace, muted violet marks branding, primary actions, links, and focus. Hover, selection, and unread states use shades of gray. Dark mode uses neutral graphite surfaces and reserves muted lavender for branding, actions, focus, and fine state markers. Use familiar controls and let weight, alignment and spacing do most of the work. Carry the same visual grammar through full width and narrow layouts, with equal care for both.",
+    "keyCharacteristics": [
+      "A distinct navigation plane against a quiet reading surface.",
+      "Flat surfaces separated by tone and whitespace.",
+      "Compact interface text with more line space for reading.",
+      "Tonal selection and stronger text for states that need to stand out."
+    ],
+    "rules": [
+      {
+        "name": "The Fold Rule",
+        "body": "Keep navigation visually separate from reading: charcoal-violet against near-white paper in light mode, deep graphite against charcoal in dark mode. The large fold mark on the light sign-in panel uses a pale gray tint; the small mark keeps the brand color.",
+        "section": "colors"
+      },
+      {
+        "name": "The Flat Paper Rule",
+        "body": "Use a change of surface tone or whitespace to separate content at rest. Only use a subdued rule where a boundary is necessary.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do keep the existing Flarepost fold mark and wordmark legible on both navigation surfaces.",
+      "Do give keyboard focus a visible lavender ring.",
+      "Do pair unread tint with stronger text and an accessible unread label.",
+      "Do keep the same message information within reach on desktop and mobile."
+    ],
+    "donts": [
+      "Don’t float ordinary mailbox rows in individual shadowed cards.",
+      "Don’t rely on tint alone to communicate unread or current state.",
+      "Don’t use decorative glass or heavy shadows to divide the reading surface."
+    ]
+  }
+}

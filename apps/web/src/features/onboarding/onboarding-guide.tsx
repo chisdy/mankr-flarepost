@@ -1,4 +1,4 @@
-import { Cancel01Icon } from "@hugeicons/core-free-icons"
+import { ArrowRight01Icon, Cancel01Icon } from "@hugeicons/core-free-icons"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Link } from "react-router"
@@ -41,7 +41,7 @@ export function OnboardingGuide({
     <div
       className={
         compact
-          ? "relative rounded-2xl border border-border bg-muted/40 px-4 py-3"
+          ? "relative rounded-2xl bg-muted/40 px-4 py-3"
           : "rounded-2xl bg-muted/50 px-5 py-4"
       }
     >
@@ -94,20 +94,31 @@ export function OnboardingBanner({
 }: {
   aliasCount: number | null
 }) {
+  const { t } = useTranslation()
   const [visible, setVisible] = useState(() => !isOnboardingDismissed())
 
   if (!visible) return null
 
   return (
-    <div className="border-b border-border px-4 py-3 sm:px-6">
-      <OnboardingGuide
-        aliasCount={aliasCount}
-        compact
-        onDismiss={() => {
-          dismissOnboarding()
-          setVisible(false)
-        }}
-      />
-    </div>
+    <details className="group/onboarding px-4 sm:px-7">
+      <summary className="flex cursor-pointer list-none items-center gap-2 py-3 text-sm font-medium text-primary [&::-webkit-details-marker]:hidden">
+        <Icon
+          icon={ArrowRight01Icon}
+          aria-hidden="true"
+          className="size-4 shrink-0 transition-transform duration-150 group-open/onboarding:rotate-90 motion-reduce:transition-none"
+        />
+        {t("onboarding.title")}
+      </summary>
+      <div className="pb-3">
+        <OnboardingGuide
+          aliasCount={aliasCount}
+          compact
+          onDismiss={() => {
+            dismissOnboarding()
+            setVisible(false)
+          }}
+        />
+      </div>
+    </details>
   )
 }

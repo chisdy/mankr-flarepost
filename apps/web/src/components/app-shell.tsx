@@ -1,11 +1,11 @@
 import {
   AlertDiamondIcon,
+  Archive02Icon,
   Delete02Icon,
   GaugeIcon,
   Key01Icon,
   Logout01Icon,
   Mail01Icon,
-  MailOpen01Icon,
   Menu01Icon,
   Note01Icon,
   PlusSignIcon,
@@ -15,12 +15,13 @@ import {
   StarIcon,
   UserCircle02Icon,
 } from "@hugeicons/core-free-icons"
-import { useEffect, useState } from "react"
+import { Suspense, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router"
 import { toast } from "sonner"
 
 import { useAuth } from "@/components/auth-gate"
+import { BrandMark } from "@/components/brand-mark"
 import { Icon } from "@/components/icon"
 import { Button } from "@/components/ui/button"
 import {
@@ -33,7 +34,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
 import {
   Sheet,
   SheetContent,
@@ -42,7 +42,9 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { ChangePasswordDialog } from "@/features/auth/change-password-dialog"
+import { clearMailboxReturnSnapshot } from "@/features/mailbox/mailbox-navigation"
 import { api, isApiError } from "@/lib/api"
+import { resetMailboxMetadata, useMailboxCounts, useMailboxTags } from "@/lib/mailbox-metadata"
 import type { FolderCounts, Tag } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -73,6 +75,12 @@ const folders = [
     countKey: "sent",
   },
   {
+    to: "/archive",
+    labelKey: "nav.archive",
+    icon: Archive02Icon,
+    countKey: "archive",
+  },
+  {
     to: "/spam",
     labelKey: "nav.spam",
     icon: AlertDiamondIcon,
@@ -88,8 +96,8 @@ const folders = [
 
 function navClassName(isActive: boolean) {
   return cn(
-    "flex items-center gap-2 rounded-2xl px-3 py-2 text-sm transition-colors",
-    isActive ? "bg-accent text-accent-foreground" : "hover:bg-accent/70"
+    "flex min-h-10 items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+    isActive ? "bg-accent font-semibold text-accent-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground"
   )
 }
 
@@ -105,10 +113,11 @@ function SidebarNav({ onNavigate, tags, counts }: SidebarNavProps) {
   return (
     <>
       <Button
-        variant="glass"
+        variant="default"
         render={<Link to="/compose" onClick={onNavigate} />}
         nativeButton={false}
-        className="w-full"
+        size="lg"
+        className="w-full justify-start"
       >
         <Icon icon={PlusSignIcon} data-icon="inline-start" />
         {t("nav.compose")}
@@ -119,7 +128,7 @@ function SidebarNav({ onNavigate, tags, counts }: SidebarNavProps) {
         scrollbarClassName="pointer-events-none !w-1.5 opacity-0 transition-opacity duration-150 group-hover/sidebar:pointer-events-auto group-hover/sidebar:opacity-100 data-scrolling:pointer-events-auto data-scrolling:opacity-100 data-scrolling:duration-0 !end-1"
       >
         <div className="flex flex-col gap-4 px-4">
-          <nav className="flex flex-col gap-1">
+          <nav className="flex flex-col gap-0.5">
             {folders.map(({ to, labelKey, icon: folderIcon, ...rest }) => {
               const countKey = "countKey" in rest ? rest.countKey : undefined
               const count = countKey && counts ? counts[countKey] : null
@@ -133,7 +142,7 @@ function SidebarNav({ onNavigate, tags, counts }: SidebarNavProps) {
                   <Icon icon={folderIcon} className="size-4 shrink-0" />
                   <span className="min-w-0 flex-1 truncate">{t(labelKey)}</span>
                   {count != null && count > 0 ? (
-                    <span className="shrink-0 text-[0.65rem] text-muted-foreground tabular-nums">
+                    <span className="shrink-0 rounded-md bg-background/60 px-1.5 py-0.5 text-xs text-foreground tabular-nums">
                       {count}
                     </span>
                   ) : null}
@@ -144,11 +153,11 @@ function SidebarNav({ onNavigate, tags, counts }: SidebarNavProps) {
 
           {tags.length > 0 ? (
             <>
-              <Separator />
+              <div aria-hidden="true" className="h-2" />
               <p className="px-3 text-xs font-medium text-muted-foreground">
                 {t("nav.tags")}
               </p>
-              <nav className="flex flex-col gap-1">
+              <nav className="flex flex-col gap-0.5">
                 {tags.map((tag) => {
                   const color =
                     tag.color &&
@@ -175,7 +184,7 @@ function SidebarNav({ onNavigate, tags, counts }: SidebarNavProps) {
             </>
           ) : null}
 
-          <Separator />
+          <div aria-hidden="true" className="h-2" />
 
           <NavLink
             to="/usage"
@@ -267,41 +276,13 @@ export function AppShell() {
   const [loggingOut, setLoggingOut] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [mobileNavPath, setMobileNavPath] = useState(location.pathname)
-  const [tags, setTags] = useState<Tag[]>([])
-  const [counts, setCounts] = useState<FolderCounts | null>(null)
+  const tags = useMailboxTags() ?? []
+  const counts = useMailboxCounts()
 
   if (location.pathname !== mobileNavPath) {
     setMobileNavPath(location.pathname)
     setMobileNavOpen(false)
   }
-
-  useEffect(() => {
-    let cancelled = false
-    api<{ tags: Tag[] }>("/api/tags")
-      .then((data) => {
-        if (!cancelled) setTags(data.tags)
-      })
-      .catch(() => {
-        if (!cancelled) setTags([])
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [location.pathname])
-
-  useEffect(() => {
-    let cancelled = false
-    api<FolderCounts>("/api/messages/counts")
-      .then((data) => {
-        if (!cancelled) setCounts(data)
-      })
-      .catch(() => {
-        if (!cancelled) setCounts(null)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [location.pathname])
 
   async function logout() {
     setLoggingOut(true)
@@ -310,6 +291,8 @@ export function AppShell() {
     } catch (err) {
       toast.error(isApiError(err) ? err.message : t("auth.logoutFailed"))
     } finally {
+      resetMailboxMetadata()
+      clearMailboxReturnSnapshot()
       clearUser()
       setLoggingOut(false)
       navigate("/login", { replace: true })
@@ -320,21 +303,18 @@ export function AppShell() {
   const closeMobileNav = () => setMobileNavOpen(false)
 
   return (
-    <div className="flex h-svh overflow-hidden bg-background text-foreground">
-      <aside className="group/sidebar hidden h-full min-h-0 w-56 shrink-0 flex-col gap-4 overflow-hidden py-4 pr-4 pl-6 md:flex">
-        <div className="flex items-center gap-2 px-1">
-          <Icon
-            icon={MailOpen01Icon}
-            className="size-5 shrink-0 text-primary"
-          />
-          <span className="truncate font-heading text-sm font-medium tracking-tight">
+    <div className="flex h-svh overflow-hidden bg-[var(--shell-background)] text-foreground">
+      <aside className="post-rail group/sidebar hidden h-full min-h-0 w-60 shrink-0 flex-col gap-5 overflow-hidden px-4 py-5 md:flex">
+        <div className="flex min-h-10 items-center gap-3 px-2">
+          <BrandMark className="size-8" />
+          <span className="truncate font-heading text-base font-semibold tracking-tight">
             {t("app.name")}
           </span>
         </div>
 
         <SidebarNav tags={tags} counts={counts} />
 
-        <div className="mt-auto">
+        <div className="mt-auto pt-3">
           <AccountMenu
             label={label}
             username={user?.username}
@@ -346,30 +326,39 @@ export function AppShell() {
         </div>
       </aside>
 
-      <div className="m-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl bg-main text-main-foreground shadow-sm">
-        <header className="flex items-center gap-2 border-b border-border px-3 py-2 md:hidden">
+      <div className="m-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-3xl md:ml-0 bg-main text-main-foreground">
+        <header className="post-rail flex min-h-16 shrink-0 items-center gap-2 px-3 md:hidden">
           <Button
             type="button"
             variant="ghost"
-            size="icon-sm"
+            size="icon-lg"
+            className="size-11"
             aria-label={t("nav.openMenu")}
             onClick={() => setMobileNavOpen(true)}
           >
             <Icon icon={Menu01Icon} />
           </Button>
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <Icon
-              icon={MailOpen01Icon}
-              className="size-5 shrink-0 text-primary"
-            />
-            <span className="truncate font-heading text-sm font-medium tracking-tight">
+          <Link to="/inbox" className="flex min-w-0 flex-1 items-center gap-2 rounded-md">
+            <BrandMark className="size-8" />
+            <span className="truncate font-heading text-base font-semibold tracking-tight">
               {t("app.name")}
             </span>
-          </div>
+          </Link>
+          <Button
+            variant="ghost"
+            size="icon-lg"
+            className="size-11"
+            aria-label={t("nav.search")}
+            render={<Link to="/search" />}
+            nativeButton={false}
+          >
+            <Icon icon={Search01Icon} />
+          </Button>
           <Button
             type="button"
-            variant="glass"
-            size="icon-sm"
+            variant="default"
+            size="icon-lg"
+            className="size-11"
             aria-label={t("nav.compose")}
             render={<Link to="/compose" />}
             nativeButton={false}
@@ -379,19 +368,21 @@ export function AppShell() {
         </header>
 
         <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <Outlet />
+          <Suspense fallback={<div role="status" className="grid flex-1 place-items-center text-sm text-muted-foreground">{t("app.loading")}</div>}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
 
       <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
         <SheetContent
           side="left"
-          className="group/sidebar w-[min(100%,18rem)] gap-4 overflow-hidden bg-background p-4 text-foreground"
-          showCloseButton={false}
+          className="post-rail group/sidebar w-[min(100%,19rem)] gap-4 overflow-hidden p-4"
+          closeLabel={t("nav.closeMenu")}
         >
           <SheetHeader className="p-0">
             <SheetTitle className="flex items-center gap-2">
-              <Icon icon={MailOpen01Icon} className="size-5 text-primary" />
+              <BrandMark className="size-8" />
               {t("app.name")}
             </SheetTitle>
             <SheetDescription className="sr-only">
@@ -401,7 +392,7 @@ export function AppShell() {
 
           <SidebarNav tags={tags} counts={counts} onNavigate={closeMobileNav} />
 
-          <div className="mt-auto">
+          <div className="mt-auto pt-3">
             <AccountMenu
               label={label}
               username={user?.username}

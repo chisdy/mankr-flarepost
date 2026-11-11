@@ -1,8 +1,10 @@
+<img src="apps/web/public/brand/flarepost-mark.svg" width="80" height="80" alt="Mankr Flarepost Logo" />
+
 # Mankr Flarepost
 
 面向个人站长的轻量域名邮件客户端：在 Cloudflare 免费层内完成日常收、读、写、回。
 
-单用户 · 单域名 · 最多 5 个别名 · Web 收发闭环 · 星标 / 标签 / 过滤器 · 搜索 · 富文本写信
+单用户 · 单域名多别名 · Web 收发闭环 · 星标 / 标签 / 过滤器 · 搜索 · 富文本写信 · 项目 HTTP 发信接入
 
 ## 能力边界（V1 / P0 + 组织 / 写作）
 
@@ -10,13 +12,14 @@
 |----|------|
 | 用户 | 单管理员账号 |
 | 域名 | 单域名（`EMAIL_DOMAIN`） |
-| 别名 | 最多 **5** 个 |
+| 别名 | 应用不限制数量。Cloudflare Catch-all 指向本 Worker 后，添加并启用即可收信；逐地址路由需要单独配置 |
 | 附件 | **不支持**。开通 R2 需在 Cloudflare 账号绑定支付方式，与「零信用卡」冲突；含附件的来信只保留正文，并在详情页给出提示 |
-| 搜索 | 主题 / 发件人 / 正文 `LIKE`（不含垃圾箱与草稿） |
+| 搜索 | 关键词匹配主题、发件人和正文；可组合发件人、收件别名、日期（UTC）、标签和已读状态。不含已删除、垃圾邮件和草稿 |
+| 整理 | 收件箱支持归档；可批量标记已读或未读、打标签和移动。归档和删除可在 5 分钟内撤销 |
 | 自定义文件夹 | 尚未实现 |
 | 标签 | 最多 **50** 个；侧栏可按标签浏览 |
 | 过滤器 | 仅对新入站邮件按优先级叠加执行 |
-| 写信 | TipTap 极简富文本；草稿约 1.5s 自动保存 |
+| 写信 | TipTap 富文本；草稿约 1.5 秒自动保存。网页发信超时后可查询原请求，避免重复发送 |
 | 发信 | **Resend / Brevo / Maileroo** 三选一（免费层）；密钥可加密存库（设置 → 邮件）或回退 Worker Secret。需在所选平台验证发信域。Cloudflare Email Sending 发往任意收件人需 Workers Paid，故未采用 |
 
 完整部署步骤见 **[docs/DEPLOY.md](./docs/DEPLOY.md)**。
@@ -35,6 +38,14 @@
 2. 设置 Secret：`COOKIES_SECRET`（必填）；发信密钥可在设置页加密入库，或设置 `RESEND_API_KEY` / `BREVO_API_KEY` / `MAILEROO_API_KEY` 之一作为回退
 3. 设置变量：`EMAIL_DOMAIN`（可选 `SEND_PROVIDER`）
 4. 按 [部署清单](./docs/DEPLOY.md#部署后清单) 配置 Email Routing、打开 `/setup`、创建别名并测收发
+
+## 其他项目使用本站发信
+
+打开 **设置 → 项目接入**（兼容 `/settings?tab=apikeys`），选择已有地址或直接创建新地址，再创建项目密钥。页面提供环境变量、curl、Node.js、Python 和 PHP 示例，以及发送记录、密钥启停和额度编辑。密钥只展示一次，请保存在调用项目的服务端。
+
+HTTP 接口为 `POST /api/v1/send`，支持可选 `Idempotency-Key`，同一请求 24 小时内重试可复用原结果；未知结果须先核查平台。项目密钥上限为 20 把。发信需要服务商授权相应域名或发件地址；别名共用同一个登录账号。
+
+SMTP 按当前选择保持**待配置**：不新增服务器，不启用付费能力，也不把 HTTP 项目密钥用作 SMTP 密码。详细契约见 [对外发信 API](./docs/API.md)。升级需应用 `0009_project_integration.sql`，`pnpm deploy` 会先执行迁移。
 
 ## 国际化
 
@@ -63,6 +74,8 @@ pnpm start   # 一键启动前端 Vite + 后端 Worker（等同 pnpm dev）
 - 后端：http://127.0.0.1:8787
 
 首次启动后打开 `/setup` 创建管理员（仅当 `users` 表为空时可用）。
+
+已有本地邮箱升级时，只需重新运行 `pnpm db:migrate:local`，让 D1 应用网页发信记录和归档相关迁移；不需要重新执行会清空业务数据的种子命令。
 
 ## 手动部署（兜底）
 

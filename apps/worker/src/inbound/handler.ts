@@ -26,6 +26,7 @@ export async function handleInboundEmail(
   const { id } = await insertInboundMessage(env.DB, {
     aliasId: alias.id,
     fromAddr,
+    replyToAddrs: parsed.replyToAddrs,
     toAddrs: [message.to],
     subject: parsed.subject,
     textBody: parsed.textBody,

@@ -735,6 +735,8 @@ const parts = [
   '',
   '-- Child rows first: message_tags/api_* reference messages and aliases.',
   'DELETE FROM message_tags;',
+  'DELETE FROM message_move_undo;',
+  'DELETE FROM web_send_requests;',
   'DELETE FROM api_send_logs;',
   'DELETE FROM api_key_usage;',
   'DELETE FROM api_keys;',

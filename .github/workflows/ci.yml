@@ -35,5 +35,8 @@ jobs:
       - name: Worker tests
         run: pnpm test
 
+      - name: Web tests
+        run: pnpm --filter @mankr/web test
+
       - name: Build (web + worker)
         run: pnpm build

@@ -20,7 +20,7 @@ import type {
 
 import { formatBytes, formatCount } from "./format"
 import { ProviderNotice } from "./provider-notice"
-import { QuotaRing, QuotaRingSkeleton } from "./quota-ring"
+import { QuotaMeter, QuotaMeterSkeleton } from "./quota-meter"
 
 /** Explicit map rather than an interpolated key, so an unhandled reason fails typecheck. */
 const CLOUDFLARE_ERROR_KEYS: Record<CloudflareErrorReason, string> = {
@@ -63,7 +63,7 @@ export function SendProviderCard({
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
         {loading ? (
-          <QuotaRingSkeleton count={2} />
+          <QuotaMeterSkeleton count={2} />
         ) : usage ? (
           <>
             <ProviderNotice
@@ -75,14 +75,14 @@ export function SendProviderCard({
             {usage.status === "ok" && (
               <>
                 <div className="grid gap-6 sm:grid-cols-2">
-                  <QuotaRing
+                  <QuotaMeter
                     label={t("usage.sendDaily")}
                     hint={t("usage.windowDayUtc")}
                     quota={usage.daily}
                     color="var(--chart-1)"
                     format={formatCount}
                   />
-                  <QuotaRing
+                  <QuotaMeter
                     label={t("usage.sendMonthly")}
                     hint={t("usage.windowMonth")}
                     quota={usage.monthly}
@@ -138,7 +138,7 @@ export function CloudflareCard({
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
         {loading ? (
-          <QuotaRingSkeleton count={4} />
+          <QuotaMeterSkeleton count={4} />
         ) : cloudflare ? (
           <>
             <ProviderNotice
@@ -151,29 +151,29 @@ export function CloudflareCard({
               }
             />
             {cloudflare.status === "ok" && (
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-                <QuotaRing
+              <div className="grid gap-6 sm:grid-cols-2">
+                <QuotaMeter
                   label={t("usage.workersRequests")}
                   hint={t("usage.windowDayUtc")}
                   quota={cloudflare.workersRequests}
                   color="var(--chart-1)"
                   format={formatCount}
                 />
-                <QuotaRing
+                <QuotaMeter
                   label={t("usage.d1RowsRead")}
                   hint={t("usage.windowDayUtc")}
                   quota={cloudflare.d1RowsRead}
                   color="var(--chart-3)"
                   format={formatCount}
                 />
-                <QuotaRing
+                <QuotaMeter
                   label={t("usage.d1RowsWritten")}
                   hint={t("usage.windowDayUtc")}
                   quota={cloudflare.d1RowsWritten}
                   color="var(--chart-4)"
                   format={formatCount}
                 />
-                <QuotaRing
+                <QuotaMeter
                   label={t("usage.d1Storage")}
                   hint={t("usage.windowTotal")}
                   quota={cloudflare.d1StorageBytes}

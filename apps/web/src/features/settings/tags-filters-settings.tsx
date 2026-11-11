@@ -49,6 +49,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { api, isApiError } from "@/lib/api"
+import { invalidateMailboxMetadata } from "@/lib/mailbox-metadata"
 import type { Alias, FilterCondition, FilterRule, Tag } from "@/lib/types"
 
 const TAG_COLORS = [
@@ -140,6 +141,7 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
         method: "POST",
         body: JSON.stringify({ name: tagName.trim(), color: tagColor }),
       })
+      invalidateMailboxMetadata("tags")
       setTagName("")
       toast.success(t("settings.tagCreated"))
       await reload()
@@ -155,6 +157,7 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
     setBusy(true)
     try {
       await api(`/api/tags/${id}`, { method: "DELETE" })
+      invalidateMailboxMetadata("tags")
       toast.success(t("settings.tagDeleted"))
       await reload()
     } catch (err) {
@@ -397,7 +400,7 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
               {tags.map((tag) => (
                 <div
                   key={tag.id}
-                  className="group inline-flex items-center gap-2 rounded-xl border border-border/80 bg-card px-3 py-1.5 text-sm shadow-2xs transition-colors hover:border-border"
+                  className="group inline-flex items-center gap-2 rounded-xl bg-secondary px-3 py-1.5 text-sm transition-colors hover:bg-accent"
                 >
                   <span
                     className="size-2.5 shrink-0 rounded-full"
@@ -444,7 +447,7 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
 
         <CardContent>
           {filters.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-8 text-center">
+            <div className="flex flex-col items-center justify-center rounded-xl bg-muted/45 py-8 text-center">
               <p className="text-sm text-muted-foreground">
                 {t("settings.noFilters")}
               </p>
@@ -460,7 +463,7 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
               </Button>
             </div>
           ) : (
-            <ul className="flex flex-col divide-y divide-border/60">
+            <ul className="flex flex-col gap-3">
               {filters.map((filter) => (
                 <li
                   key={filter.id}
@@ -704,7 +707,7 @@ export function TagsFiltersSettings({ aliases }: { aliases: Alias[] }) {
 
             <FieldSet>
               <FieldLegend variant="label">{t("settings.actions")}</FieldLegend>
-              <div className="flex flex-col gap-2.5 rounded-xl border border-border p-3">
+              <div className="flex flex-col gap-2.5 rounded-xl bg-muted/45 p-3">
                 <FieldGroup
                   data-slot="checkbox-group"
                   className="flex flex-row flex-wrap gap-x-6 gap-y-2"

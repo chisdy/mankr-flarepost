@@ -15,10 +15,11 @@ export type Alias = {
   createdAt: number
 }
 
-export type Folder = "inbox" | "sent" | "trash" | "draft" | "spam"
+export type Folder = "inbox" | "sent" | "trash" | "draft" | "spam" | "archive"
 
 export type FolderCounts = {
   inbox: number
+  archive: number
   sent: number
   trash: number
   draft: number
@@ -76,6 +77,7 @@ export type MessageListItem = {
 }
 
 export type MessageDetail = MessageListItem & {
+  replyToAddrs?: string[]
   textBody: string
   htmlBody: string | null
   aliasId: string
@@ -84,17 +86,8 @@ export type MessageDetail = MessageListItem & {
   tags: Tag[]
 }
 
-export type MailboxViewMode =
-  | { kind: "folder"; folder: Folder }
-  | { kind: "starred" }
-  | { kind: "tag"; tagId: string }
-  | { kind: "search"; query: string }
-
 export type SendErrorCode =
-  | "not_configured"
-  | "rate_limited"
-  | "invalid_address"
-  | "provider_error"
+  "not_configured" | "rate_limited" | "invalid_address" | "provider_error"
 
 export type ApiErrorBody = {
   error?: string
@@ -125,6 +118,33 @@ export type ApiKey = {
   secret?: string
 }
 
+export type IntegrationCapabilities = {
+  domain: string | null
+  aliases: { limit: null; used: number; remaining: null }
+  apiKeys: { limit: number; used: number; remaining: number }
+  outbound: {
+    provider: SendProviderId
+    configured: boolean
+    domainVerified: null
+  }
+  inbound: { status: "unverified" }
+  smtp: { mode: "unconfigured" }
+}
+
+export type ApiSendLog = {
+  id: string
+  apiKeyId: string
+  projectName: string
+  keyPrefix: string
+  fromAddr: string
+  toAddrs: string[]
+  subject: string
+  status: "sent" | "failed"
+  errorCode: string | null
+  providerMessageId: string | null
+  createdAt: number
+}
+
 export type QuotaWindow = "day" | "month" | "total"
 
 export type ProviderStatus = "ok" | "not_configured" | "error"
@@ -138,9 +158,7 @@ export type Quota = {
 }
 
 export type CloudflareErrorReason =
-  | "unauthorized"
-  | "query_failed"
-  | "unreachable"
+  "unauthorized" | "query_failed" | "unreachable"
 
 export type SendProviderId = "resend" | "brevo" | "maileroo"
 

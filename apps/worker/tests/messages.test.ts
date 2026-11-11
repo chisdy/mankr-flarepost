@@ -102,9 +102,10 @@ describe('listMessages', () => {
     })
     expect(result.nextCursor).toBeNull()
     const sql = String(prepare.mock.calls[0]?.[0] ?? '')
-    expect(sql).toMatch(/WHERE\s+folder\s*=\s*\?/i)
+    expect(sql).toMatch(/WHERE\s+folder\s*=\s*'inbox' AND is_archived = \?/i)
     expect(sql).toMatch(/ORDER BY\s+created_at\s+DESC\s*,\s*id\s+DESC/i)
-    expect(bind).toHaveBeenCalledWith('inbox', 21)
+    expect(sql).not.toMatch(/text_body|html_body/)
+    expect(bind).toHaveBeenCalledWith(0, 21)
   })
 
   it('returns nextCursor when more than limit rows', async () => {
@@ -339,7 +340,7 @@ describe('purgeExpiredMessages', () => {
     ).resolves.toEqual({ trash: 2, spam: 5 })
 
     expect(batch).toHaveBeenCalledTimes(1)
-    expect(batch.mock.calls[0]?.[0]).toHaveLength(4)
+    expect(batch.mock.calls[0]?.[0]).toHaveLength(5)
     expect(bind).toHaveBeenNthCalledWith(2, 'trash', now - 30 * DAY_MS)
     expect(bind).toHaveBeenNthCalledWith(4, 'spam', now - 7 * DAY_MS)
     const msgSql = String(prepare.mock.calls[1]?.[0] ?? '')
@@ -561,7 +562,8 @@ describe('getFolderCounts', () => {
   it('aggregates folder totals and starred count', async () => {
     const all = vi.fn().mockResolvedValue({
       results: [
-        { folder: 'inbox', cnt: 12 },
+        { folder: 'inbox', archived: 0, cnt: 12 },
+        { folder: 'inbox', archived: 1, cnt: 3 },
         { folder: 'sent', cnt: 3 },
         { folder: 'draft', cnt: 2 },
         { folder: 'trash', cnt: 1 },
@@ -577,6 +579,7 @@ describe('getFolderCounts', () => {
 
     await expect(getFolderCounts(db)).resolves.toEqual({
       inbox: 12,
+      archive: 3,
       sent: 3,
       trash: 1,
       draft: 2,
@@ -602,6 +605,7 @@ describe('getFolderCounts', () => {
 
     await expect(getFolderCounts(db)).resolves.toEqual({
       inbox: 4,
+      archive: 0,
       sent: 0,
       trash: 0,
       draft: 0,

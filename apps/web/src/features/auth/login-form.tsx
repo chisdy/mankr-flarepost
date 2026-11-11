@@ -7,7 +7,6 @@ import { toast } from "sonner"
 import { z } from "zod"
 
 import { useAuth } from "@/components/auth-gate"
-import { LanguageSwitcher } from "@/components/language-switcher"
 import { PasswordInput } from "@/components/password-input"
 import { Button } from "@/components/ui/button"
 import {
@@ -16,7 +15,6 @@ import {
   CardDescription,
   CardFooter,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card"
 import {
   Field,
@@ -27,6 +25,8 @@ import {
 import { Input } from "@/components/ui/input"
 import { api, isApiError } from "@/lib/api"
 import type { AuthUser, SetupStatus } from "@/lib/types"
+
+import { AuthLayout } from "./auth-layout"
 
 type LoginValues = {
   username: string
@@ -88,13 +88,10 @@ export function LoginForm() {
   }
 
   return (
-    <div className="relative flex min-h-svh items-center justify-center p-6">
-      <div className="absolute top-4 right-4">
-        <LanguageSwitcher className="w-36" />
-      </div>
-      <Card className="w-full max-w-sm">
+    <AuthLayout>
+      <Card className="w-full max-w-md border-0 bg-transparent py-0 [--card-spacing:0rem] gap-7">
         <CardHeader>
-          <CardTitle>{t("auth.signInTitle")}</CardTitle>
+          <h1 className="text-3xl font-semibold tracking-tight">{t("auth.signInTitle")}</h1>
           <CardDescription>{t("auth.signInDescription")}</CardDescription>
         </CardHeader>
         <CardContent>
@@ -137,6 +134,6 @@ export function LoginForm() {
           ) : null}
         </CardFooter>
       </Card>
-    </div>
+    </AuthLayout>
   )
 }

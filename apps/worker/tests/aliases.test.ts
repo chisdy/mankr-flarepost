@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  MAX_ALIASES,
-  AliasLimitError,
-  assertCanCreate,
   normalizeAddress,
   patchAlias,
   shouldAutoDefaultOnCreate,
@@ -25,27 +22,6 @@ describe('normalizeAddress', () => {
   it('rejects empty local-part', () => {
     expect(() => normalizeAddress('', 'example.com')).toThrow(/invalid/i)
     expect(() => normalizeAddress('@example.com', 'example.com')).toThrow(/invalid/i)
-  })
-})
-
-describe('assertCanCreate', () => {
-  it('allows create when count < 5', () => {
-    expect(() => assertCanCreate(0)).not.toThrow()
-    expect(() => assertCanCreate(4)).not.toThrow()
-  })
-
-  it('rejects when count >= 5 with alias_limit', () => {
-    expect(() => assertCanCreate(5)).toThrow(AliasLimitError)
-    expect(() => assertCanCreate(6)).toThrow(AliasLimitError)
-    try {
-      assertCanCreate(MAX_ALIASES)
-      expect.unreachable()
-    } catch (e) {
-      expect(e).toBeInstanceOf(AliasLimitError)
-      const err = e as AliasLimitError
-      expect(err.code).toBe('alias_limit')
-      expect(err.message).toMatch(/5/)
-    }
   })
 })
 

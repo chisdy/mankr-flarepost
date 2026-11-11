@@ -3,7 +3,6 @@ import type { Env } from '../env'
 import { jsonError } from '../http/errors'
 import type { AppVariables } from '../http/middleware'
 import {
-  AliasLimitError,
   InvalidAddressError,
   createAlias,
   listAliases,
@@ -19,14 +18,36 @@ export function registerAliasRoutes(app: AliasApp): void {
   })
 
   app.post('/api/aliases', async (c) => {
-    let body: { address?: unknown }
+    let body: { address?: unknown; localPart?: unknown }
     try {
       body = await c.req.json()
     } catch {
       return jsonError(c, 400, 'invalid_body')
     }
 
-    const address = typeof body.address === 'string' ? body.address : ''
+    if (
+      !body ||
+      typeof body !== 'object' ||
+      'address' in body === 'localPart' in body
+    ) {
+      return jsonError(c, 400, 'invalid_body')
+    }
+    if (
+      'localPart' in body &&
+      (typeof body.localPart !== 'string' ||
+        !/^[a-z0-9](?:[a-z0-9._+-]{0,62}[a-z0-9])?$/i.test(
+          body.localPart.trim(),
+        ) ||
+        body.localPart.includes('..'))
+    ) {
+      return jsonError(c, 400, 'invalid_address')
+    }
+    const address =
+      typeof body.localPart === 'string'
+        ? body.localPart
+        : typeof body.address === 'string'
+          ? body.address
+          : ''
     if (!address.trim()) {
       return jsonError(c, 400, 'invalid_address')
     }
@@ -36,11 +57,8 @@ export function registerAliasRoutes(app: AliasApp): void {
         address,
         domain: c.env.EMAIL_DOMAIN,
       })
-      return c.json({ address: created.address }, 201)
+      return c.json(created, 201)
     } catch (e) {
-      if (e instanceof AliasLimitError) {
-        return c.json({ error: e.code, message: e.message }, 400)
-      }
       if (e instanceof InvalidAddressError) {
         return jsonError(c, 400, e.code)
       }
